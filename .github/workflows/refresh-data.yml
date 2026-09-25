@@ -1,0 +1,36 @@
+name: Refresh game data
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,4"   # Monday and Thursday, after typical DBL release windows
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Download and normalize from dblegends.net
+        run: npm run ingest:refresh
+      - name: Engine tests on the new data
+        run: npm test
+      - name: Sync to Supabase (optional, skipped without secrets)
+        if: ${{ env.SUPABASE_URL != '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run db:sync
+      - name: Commit snapshot (the Pages deploy runs after this workflow)
+        run: |
+          git config user.name "data-bot"
+          git config user.email "data-bot@users.noreply.github.com"
+          git add src/data/generated
+          if ! git diff --cached --quiet; then git commit -m "data: refresh $(date -u +%Y-%m-%d)"; git push; fi
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
