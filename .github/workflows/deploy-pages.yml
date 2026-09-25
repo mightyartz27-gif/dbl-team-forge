@@ -5,7 +5,7 @@ on:
     branches: [main]
   # data commits made by the refresh job don't trigger "push" workflows, so chain on it
   workflow_run:
-    workflows: ["Refresh game data"]
+    workflows: ["Refresh game data", "Refresh PvP tiers"]
     types: [completed]
   workflow_dispatch: {}
 

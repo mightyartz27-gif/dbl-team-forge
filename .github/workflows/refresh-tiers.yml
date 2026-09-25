@@ -1,0 +1,26 @@
+name: Refresh PvP tiers
+
+# The official Rating Match tier list changes every season. This light job (no dependencies,
+# ~100 small requests at most) checks daily and commits only when the list changed.
+on:
+  schedule:
+    - cron: "30 9 * * *"   # 18:30 JST, just after new seasons start
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  tiers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/ingest/tiers.mjs
+      - name: Commit if the tier list changed (the Pages deploy runs after this workflow)
+        run: |
+          git config user.name "data-bot"
+          git config user.email "data-bot@users.noreply.github.com"
+          git add src/data/generated/pvp.json
+          if ! git diff --cached --quiet; then git commit -m "pvp: tier list update $(date -u +%Y-%m-%d)"; git push; fi
