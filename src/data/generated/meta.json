@@ -1,0 +1,18 @@
+{
+  "source": "dblegends.net (community database)",
+  "fetchedAt": "2026-09-25T19:54:55.827Z",
+  "builtAt": "2026-09-25T20:23:19.408Z",
+  "counts": {
+    "characters": 711,
+    "equipment": 926,
+    "battleEquipment": 900,
+    "tags": 518
+  },
+  "parse": {
+    "zAbilityLevels": 3948,
+    "zAbilityLevelsFullyParsed": 3937,
+    "characterWarnings": 5,
+    "equipLinesParsed": 3821,
+    "equipLinesContextual": 439
+  }
+}

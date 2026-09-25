@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #141C3A;         /* gi navy — base */
+  --color-panel: #1F2A52;       /* raised surface */
+  --color-panel-2: #283566;     /* pressed / nested */
+  --color-line: #34427A;
+  --color-cream: #F2EDE4;       /* text */
+  --color-mute: #A9B0CC;
+  --color-gi: #F58A1F;          /* the one action accent */
+  --color-gi-deep: #C9650A;
+  --color-ok: #5BD08A;
+  --color-warn: #F2C94C;
+  --color-bad: #F06A5B;
+  /* in-game element colors, used only to mean "this character's color" */
+  --color-el-red: #E9463E;
+  --color-el-yel: #F6C433;
+  --color-el-pur: #A866E8;
+  --color-el-grn: #3FBF6A;
+  --color-el-blu: #3F8CF0;
+  --color-el-lgt: #EDEDF5;
+  --font-display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-sans: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { overflow-x: clip; }
+/* grid/flex children must be allowed to shrink so long card names wrap instead of widening the page */
+li, article, section { min-width: 0; }
+html, body { background: var(--color-ink); color: var(--color-cream); font-family: var(--font-sans); }
+body { -webkit-tap-highlight-color: transparent; }
+*:focus-visible { outline: 2px solid var(--color-gi); outline-offset: 2px; border-radius: 6px; }
+.num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.scroll-x { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.scroll-x::-webkit-scrollbar { display: none; }
+.snap-x-cards { scroll-snap-type: x mandatory; }
+.snap-x-cards > * { scroll-snap-align: start; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-enter { animation: sheet-up 180ms ease-out; }
+@keyframes charge { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.bar-charge { transform-origin: left; animation: charge 420ms ease-out; }
