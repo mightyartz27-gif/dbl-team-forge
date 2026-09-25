@@ -29,6 +29,7 @@ export interface TeamEval {
     health: number; strike: number; blast: number; strikeDef: number; blastDef: number;
     zHealth: number; zStrike: number; zBlast: number; zStrikeDef: number; zBlastDef: number;
     zenkaiActive: number; healthBuffs: number; wasted: number;
+    tierDmg: number; tierGuard: number; tiers: (string | null)[];
     equipActive: number; equipConditional: number; equipPieces: number;
     coverage: number[];
     sharedTags: { id: number; count: number }[];
@@ -106,7 +107,8 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
   const eqVal = avg((m) => weightedGain(m, team, db, p, ['equip']));
   const hp = avg((m) => m.stats.hp.final);
   const off = avg((m) => relevantOffense(m, team, db));
-  const def = avg((m) => (m.stats.sd.final + m.stats.bd.final) / 2);
+  const def = avg((m) => (m.defense.strike + m.defense.blast) / 2);
+  const rating = team.ruleset === 'rating';
   const cov = battle.map((m) => m.coverage);
 
   let equipActive = 0, equipConditional = 0, equipPieces = 0;
@@ -135,8 +137,8 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
     zEfficiency: saturate(zVal, REF.z),
     zenkaiEfficiency: saturate(zkVal, REF.zenkai),
     healthSupport: saturate(hp, REF.health),
-    offense: saturate(off, REF.offense),
-    defense: saturate(def, REF.defense),
+    offense: saturate(off, rating ? REF.offenseRating : REF.offense),
+    defense: saturate(def, rating ? REF.defenseRating : REF.defense),
     equipment: clamp(saturate(eqVal, REF.equipment) * 0.7 + (equipConditional ? (equipActive / equipConditional) * 30 : 30)),
     coverage: clamp((cov.reduce((s, x) => s + x, 0) / Math.max(1, cov.length)) * 100),
     leaderEfficiency: saturate(leaderGain, REF.leader),
@@ -157,6 +159,8 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
       strikeDef: avg((m) => m.stats.sd.final), blastDef: avg((m) => m.stats.bd.final),
       zHealth: sumSrc('hp'), zStrike: sumSrc('sa'), zBlast: sumSrc('ba'), zStrikeDef: sumSrc('sd'), zBlastDef: sumSrc('bd'),
       zenkaiActive: abilities.filter((a) => a.source === 'zenkai' && !a.wasted).length,
+      tierDmg: avg((m) => m.tier?.dmg ?? 0), tierGuard: avg((m) => m.tier?.guard ?? 0),
+      tiers: BATTLE.map((i) => (team.slots[i] ? db.tierOf(team.slots[i]!.charId) : null)),
       healthBuffs: abilities.filter((a) => a.givesHealth).length,
       wasted, equipActive, equipConditional, equipPieces, coverage: cov, sharedTags: shared,
     },

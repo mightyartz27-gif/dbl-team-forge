@@ -9,9 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",
-    "ingest": "node scripts/ingest/fetch.mjs && node scripts/ingest/normalize.mjs",
-    "ingest:refresh": "node scripts/ingest/fetch.mjs --refresh && node scripts/ingest/normalize.mjs",
-    "db:sync": "node scripts/ingest/supabase-sync.mjs"
+    "ingest": "node scripts/ingest/fetch.mjs && node scripts/ingest/normalize.mjs && node scripts/ingest/tiers.mjs",
+    "ingest:refresh": "node scripts/ingest/fetch.mjs --refresh && node scripts/ingest/normalize.mjs && node scripts/ingest/tiers.mjs",
+    "db:sync": "node scripts/ingest/supabase-sync.mjs",
+    "ingest:tiers": "node scripts/ingest/tiers.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

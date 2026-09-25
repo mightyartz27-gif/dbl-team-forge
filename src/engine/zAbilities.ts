@@ -21,6 +21,10 @@ export interface Member {
 export interface Team {
   slots: (Member | null)[];
   leader: number | null;
+  /** 'rating' adds official Rating Match tier bonuses to the fighters */
+  ruleset?: 'standard' | 'rating';
+  /** LEGENDS LIMITED star band for the Featured LL bonus (index into pvp.llBands) */
+  llBand?: number;
 }
 
 export const BATTLE = [0, 1, 2] as const;

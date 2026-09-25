@@ -4,12 +4,14 @@ import { emptyFilter, searchChars, type CharFilter } from '../lib/search';
 import { useStore } from '../state/store';
 import { CharAvatar, EL_COLOR } from './CharAvatar';
 import { Chip, Sheet } from './ui';
+import { TierBadge } from './TierBadge';
+import { TIERS, TIER_LABEL, type TierFilterKey } from '../engine/pvp';
 
 export const RARITY_CHIPS = [['ULTRA', 'UL'], ['LL', 'LL'], ['SPARKING', 'SP'], ['EXTREME', 'EX'], ['HERO', 'HE']] as const;
 export const COLORS: Color[] = ['RED', 'YEL', 'PUR', 'GRN', 'BLU', 'LGT'];
 
 export function FilterBar({ f, setF, showBox = true }: { f: CharFilter; setF: (f: CharFilter) => void; showBox?: boolean }) {
-  const { box } = useStore();
+  const { box, db } = useStore();
   const toggle = <T,>(s: Set<T>, v: T) => { const n = new Set(s); n.has(v) ? n.delete(v) : n.add(v); return n; };
   return (
     <>
@@ -19,6 +21,7 @@ export function FilterBar({ f, setF, showBox = true }: { f: CharFilter; setF: (f
         {RARITY_CHIPS.map(([k, l]) => <Chip key={k} active={f.rarity.has(k)} onClick={() => setF({ ...f, rarity: toggle(f.rarity, k) })}>{l}</Chip>)}
         <Chip active={f.zenkai} onClick={() => setF({ ...f, zenkai: !f.zenkai })}>Zenkai</Chip>
         {showBox && <Chip active={f.boxOnly} onClick={() => setF({ ...f, boxOnly: !f.boxOnly })}>My box ({box.size})</Chip>}
+        {db.data.pvp && ([...TIERS, 'unlisted'] as TierFilterKey[]).map((t) => <Chip key={t} active={f.tiers.has(t)} onClick={() => setF({ ...f, tiers: toggle(f.tiers, t) })}>{TIER_LABEL[t]}</Chip>)}
         {COLORS.map((c) => (
           <Chip key={c} active={f.colors.has(c)} tone={EL_COLOR[c]} onClick={() => setF({ ...f, colors: toggle(f.colors, c) })}>
             <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: EL_COLOR[c] }} />{c}
@@ -43,7 +46,7 @@ export function CharacterPicker({ open, onClose, onPick, title = 'Choose a chara
               <CharAvatar c={c} size={48} />
               <div className="min-w-0">
                 <div className="truncate font-semibold">{c.name}</div>
-                <div className="num text-sm text-mute">{c.card}{box.has(c.id) ? '  ✓ in box' : ''}</div>
+                <div className="num flex items-center gap-2 text-sm text-mute">{c.card}<TierBadge id={c.id} />{box.has(c.id) ? ' ✓ in box' : ''}</div>
               </div>
             </button>
           </li>

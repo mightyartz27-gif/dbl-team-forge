@@ -1,4 +1,4 @@
-import type { Character, DbMeta, Equipment, GameData, Tag } from './types';
+import type { Character, DbMeta, Equipment, GameData, PvpData, Tag } from './types';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -8,13 +8,14 @@ import { supabase } from '../lib/supabase';
  * The UI never depends on where the data came from.
  */
 async function bundled(): Promise<GameData> {
-  const [c, e, t, m] = await Promise.all([
+  const [c, e, t, m, p] = await Promise.all([
     import('./generated/characters.json'),
     import('./generated/equipment.json'),
     import('./generated/tags.json'),
     import('./generated/meta.json'),
+    import('./generated/pvp.json').catch(() => ({ default: null })),
   ]);
-  return { characters: c.default as unknown as Character[], equipment: e.default as unknown as Equipment[], tags: t.default as Tag[], meta: m.default as unknown as DbMeta };
+  return { characters: c.default as unknown as Character[], equipment: e.default as unknown as Equipment[], tags: t.default as Tag[], meta: m.default as unknown as DbMeta, pvp: (p.default as unknown as PvpData) ?? null };
 }
 
 async function fetchAll<T>(table: string, columns = '*'): Promise<T[]> {
@@ -46,7 +47,7 @@ export async function loadGameData(): Promise<{ data: GameData; origin: 'bundled
   const local = await bundled();
   try {
     const remote = await fromSupabase(local.meta.builtAt);
-    if (remote) return { data: remote, origin: 'supabase' };
+    if (remote) return { data: { ...remote, pvp: local.pvp }, origin: 'supabase' };
   } catch (e) {
     console.warn('Supabase unavailable, using bundled data', e);
   }

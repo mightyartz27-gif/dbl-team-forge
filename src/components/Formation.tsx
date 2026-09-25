@@ -1,6 +1,7 @@
 import type { Team } from '../engine/zAbilities';
 import { useStore } from '../state/store';
 import { CharAvatar } from './CharAvatar';
+import { TierBadge } from './TierBadge';
 
 /** 3 fighters above, 3 bench below — the core picture of a DBL team. */
 export function Formation({ team, onSlot, coverage, size = 'lg', lockedIds = [] }: { team: Team; onSlot?: (i: number) => void; coverage?: number[]; size?: 'lg' | 'sm'; lockedIds?: number[] }) {
@@ -17,6 +18,7 @@ export function Formation({ team, onSlot, coverage, size = 'lg', lockedIds = [] 
             {lockedIds.includes(c.id) && <span aria-label="Locked">🔒 </span>}{c.name}
           </span>
         )}
+        {team.ruleset === 'rating' && i < 3 && <TierBadge id={c.id} />}
         {coverage && i < 3 && <span className="num text-xs font-semibold" style={{ color: coverage[i] > 0.9 ? 'var(--color-ok)' : coverage[i] > 0.6 ? 'var(--color-warn)' : 'var(--color-bad)' }}>Z {Math.round(coverage[i] * 100)}%</span>}
       </div>
     ) : (

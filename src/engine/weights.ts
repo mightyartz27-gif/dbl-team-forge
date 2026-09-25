@@ -76,6 +76,6 @@ export function sourceWeights(p: Priority): { z: number; zenkai: number; assault
  * so a value equal to REF scores ≈70 and differences near the top still count.
  * Calibrated on generated teams from the Sept 2026 database.
  */
-export const REF = { z: 550, zenkai: 500, equipment: 450, health: 50, offense: 1200, defense: 500, leader: 350 };
+export const REF = { z: 550, zenkai: 500, equipment: 450, health: 50, offense: 1200, defense: 500, leader: 350, offenseRating: 2600, defenseRating: 1100 };
 export const saturate = (x: number, ref: number) => 100 * (1 - Math.exp((-1.2 * Math.max(0, x)) / ref));
 export const WASTED_PENALTY = 3; // points per ability that reaches no fighter

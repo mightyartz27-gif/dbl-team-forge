@@ -3,6 +3,7 @@ import type { Db } from './db';
 import { conditionText } from './equipment';
 import { withOptimizedEquipment } from './equipOptimizer';
 import { SearchContext } from './generator';
+import { TIER_LABEL, tierKey } from './pvp';
 import { evaluateTeam, type TeamEval } from './scoring';
 import { STAT_LABEL } from './stats';
 import type { Priority } from './weights';
@@ -56,7 +57,7 @@ export function benchContribution(team: Team, charId: number, db: Db, ctx: Searc
 
 export function benchRanking(team: Team, db: Db, p: Priority, pool: number[], limit = 10): { chosen: BenchOption[]; alternatives: BenchOption[] } {
   const ids = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])]);
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])], { ruleset: team.ruleset, llBand: team.llBand });
   const chosen = BENCH.map((i) => team.slots[i]).filter(Boolean).map((m) => benchContribution(team, m!.charId, db, ctx));
   const alts = pool.filter((id) => !ids.has(id)).map((id) => benchContribution(team, id, db, ctx)).filter((b) => b.useful > 0).sort((a, b) => b.useful - a.useful).slice(0, limit);
   const weakest = [...chosen].sort((a, b) => a.useful - b.useful)[0];
@@ -119,16 +120,34 @@ export function diagnose(team: Team, ev: TeamEval, db: Db): Problem[] {
     const who = db.char(team.slots[a.giver]!.charId).name;
     out.push({ level: 'warn', text: a.source === 'zenkai' ? `${who}'s Zenkai buff reaches no fighter.` : `${who}'s ${a.name} reaches no fighter.` });
   }
+  if (team.ruleset === 'rating' && db.data.pvp) {
+    BATTLE.forEach((i) => {
+      const m = team.slots[i];
+      if (!m) return;
+      const t = tierKey(db, m.charId), name = db.char(m.charId).name;
+      if (t === 'C') out.push({ level: 'warn', text: `${name} is Tier C: no Rating Match tier bonus.` });
+      if (t === 'unlisted') out.push({ level: 'info', text: `${name} isn't on the published tier list; check its tier in game.` });
+      const tb = ev.sheet.members[i]?.tier;
+      if (tb?.zenkaiSide && tb.tier !== 'C') out.push({ level: 'info', text: `${name} is Zenkai Awakened, so it gets the smaller ${TIER_LABEL[tb.tier]} bonus (+${tb.dmg}% damage).` });
+    });
+    BENCH.forEach((i) => {
+      const m = team.slots[i];
+      if (!m) return;
+      const t = tierKey(db, m.charId);
+      if (t === 'Z' || t === 'S') out.push({ level: 'info', text: `${db.char(m.charId).name} is ${TIER_LABEL[t]} but on the bench; tier bonuses only apply while fighting.` });
+    });
+  }
   if (team.leader === null && team.slots.slice(0, 3).some(Boolean)) out.push({ level: 'warn', text: 'No Leader set: the Leader privilege is unused.' });
   if (ev.metrics.healthBuffs === 0) out.push({ level: 'info', text: 'No Health Z Ability reaches the fighters.' });
   return out;
 }
 
 /** Best single replacements, ranked by overall score gain. Locked characters are never replaced. */
-export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], locked: number[], limit = 4): Swap[] {
+export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], locked: number[], limit = 4, fighterPool?: number[]): Swap[] {
   const cur = evaluateTeam(team, db, p, locked);
   const inTeam = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])]);
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])], { ruleset: team.ruleset, llBand: team.llBand });
+  const fighterSet = fighterPool ? new Set(fighterPool) : null;
   const trio = BATTLE.map((i) => team.slots[i]?.charId).filter((x): x is number => x !== undefined);
   const leaderId = team.leader !== null ? team.slots[team.leader]?.charId ?? null : null;
   const free = pool.filter((id) => !inTeam.has(id));
@@ -150,7 +169,7 @@ export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], lo
     const curId = team.slots[slot]?.charId;
     if (curId !== undefined && locked.includes(curId)) continue;
     const mates = trio.filter((x) => x !== curId);
-    const best = free.map((id) => [id, mates.reduce((s, r) => s + ctx.R(id, r) + ctx.R(r, id), 0) + ctx.R(id, id)] as const).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const best = free.filter((id) => !fighterSet || fighterSet.has(id)).map((id) => [id, mates.reduce((s, r) => s + ctx.R(id, r) + ctx.R(r, id), 0) + ctx.R(id, id) + ctx.pre.get(id)!.tierV] as const).sort((a, b) => b[1] - a[1]).slice(0, 6);
     best.forEach(([id]) => tryPut(slot, id));
   }
   const seen = new Set<string>();
@@ -165,6 +184,13 @@ export function explain(e: TeamEval, team: Team, db: Db, others: TeamEval[], foc
   const why: string[] = [];
   why.push(`${pct(m.zStrike)} Base Strike ATK and ${pct(m.zBlast)} Base Blast ATK from Z Abilities (fighter average)`);
   why.push(`${pct(m.zStrikeDef)} Base Strike DEF, ${pct(m.zBlastDef)} Base Blast DEF, ${pct(m.zHealth)} Health`);
+  if (team.ruleset === 'rating') {
+    const parts = BATTLE.filter((i) => team.slots[i]).map((i) => {
+      const tb = e.sheet.members[i]?.tier;
+      return `${db.char(team.slots[i]!.charId).name} ${tb ? `${TIER_LABEL[tb.tier]} +${tb.dmg}% damage` : 'no tier bonus'}`;
+    });
+    why.push(`Rating Match tiers: ${parts.join('; ')}`);
+  }
   why.push(`${m.zenkaiActive} Zenkai buff${m.zenkaiActive === 1 ? '' : 's'} active on the fighters`);
   BATTLE.forEach((i) => {
     const mm = team.slots[i];

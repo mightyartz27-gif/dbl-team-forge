@@ -3,10 +3,12 @@ import type { Db } from './db';
 import { withOptimizedEquipment } from './equipOptimizer';
 import { evaluateTeam, synergyScore, SYNERGY_TAG_KINDS, type TeamEval } from './scoring';
 import { attackType, sourceWeights, statWeights, type AttackType, type Priority } from './weights';
+import { tierBonusFor } from './pvp';
 import { abilitiesOf, matches, newMember, type Team, type ZSource } from './zAbilities';
 
 interface PreLine { source: ZSource; cond: number[][] | null; v: Record<AttackType, number> }
-interface Pre { id: number; type: AttackType; tags: Set<number>; synTags: number[]; lines: PreLine[]; uncond: Record<AttackType, number>; uncondZ: Record<AttackType, number>; assault: Record<AttackType, number> }
+interface Pre { id: number; type: AttackType; tags: Set<number>; synTags: number[]; lines: PreLine[]; uncond: Record<AttackType, number>; uncondZ: Record<AttackType, number>; assault: Record<AttackType, number>; tierV: number }
+export interface RulesetOptions { ruleset?: 'standard' | 'rating'; llBand?: number }
 
 const TYPES: AttackType[] = ['strike', 'blast', 'mixed'];
 
@@ -14,7 +16,7 @@ const TYPES: AttackType[] = ['strike', 'blast', 'mixed'];
 export class SearchContext {
   readonly pre = new Map<number, Pre>();
   private rCache = new Map<number, number>();
-  constructor(readonly db: Db, readonly p: Priority, pool: number[]) {
+  constructor(readonly db: Db, readonly p: Priority, pool: number[], readonly rules: RulesetOptions = {}) {
     const sw = sourceWeights(p);
     const W = Object.fromEntries(TYPES.map((t) => [t, statWeights(p, t)])) as Record<AttackType, Partial<Record<StatKey, number>>>;
     for (const id of pool) {
@@ -32,7 +34,15 @@ export class SearchContext {
         }
       }
       const synTags = c.tags.filter((t) => SYNERGY_TAG_KINDS.has(db.tags.get(t)?.kind ?? ''));
-      this.pre.set(id, { id, type: attackType(c), tags: db.tagSet(id), synTags, lines, uncond, uncondZ, assault });
+      // Rating Match tier bonus as a fighter. Damage Inflicted multiplies the whole ATK stack,
+      // so it is scaled up here to be comparable with additive Z Ability points.
+      let tierV = 0;
+      if (rules.ruleset === 'rating') {
+        const tb = tierBonusFor(db, m, rules.llBand);
+        const w = W[attackType(c)];
+        if (tb) tierV = (w.dmg ?? 0) * tb.dmg * 3 + (w.dmgGuard ?? 0) * tb.guard * 2 + tb.ll * ((w.hp ?? 0) + (w.sa ?? 0) + (w.ba ?? 0) + (w.sd ?? 0) + (w.bd ?? 0));
+      }
+      this.pre.set(id, { id, type: attackType(c), tags: db.tagSet(id), synTags, lines, uncond, uncondZ, assault, tierV });
     }
   }
   ensure(id: number) { if (!this.pre.has(id)) throw new Error(`not in pool ${id}`); }
@@ -70,6 +80,9 @@ export class SearchContext {
 export interface GenerateOptions {
   locked: number[];            // battle members that must stay
   lockedBench?: number[];      // bench members that must stay
+  fighterPool?: number[];      // allowed fighters (e.g. PvP tier filter); defaults to pool
+  ruleset?: 'standard' | 'rating';
+  llBand?: number;
   pool: number[];              // allowed character ids (whole db or the user's box)
   priorities: Priority[];
   perPriority?: number;        // shortlist size to fully evaluate
@@ -96,10 +109,12 @@ function combos(arr: number[], k: number): number[][] {
 }
 
 /** Fast search: best (trio, leader, bench) candidates under one priority. */
-export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number): Candidate[] {
+export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number, fighterPool?: number[]): Candidate[] {
   const sw = sourceWeights(ctx.p);
   const need = 3 - locked.length;
   const free = pool.filter((id) => !locked.includes(id) && !lockedBench.includes(id));
+  const fighterSet = fighterPool ? new Set(fighterPool) : null;
+  const freeFighters = fighterSet ? free.filter((id) => fighterSet.has(id)) : free;
   let trios: number[][];
   if (need <= 0) trios = [locked.slice(0, 3)];
   else {
@@ -109,9 +124,10 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
       for (const l of locked) s += ctx.R(c, l) + ctx.R(l, c);
       if (!locked.length) s += ctx.pre.get(c)!.uncond.mixed * 0.25;
       s += ctx.sharedSynergy([...locked, c]) * sw.synergy * 0.05;
+      s += ctx.pre.get(c)!.tierV;
       return s;
     };
-    const cand = topK(free, K, affinity);
+    const cand = topK(freeFighters, K, affinity);
     trios = combos(cand, need).map((x) => [...locked, ...x]);
   }
 
@@ -147,6 +163,7 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
       const leader = trio[li];
       const lt = ctx.pre.get(leader)!.type;
       let v = syn + lockedBenchVal(trio, leader);
+      for (const g of trio) v += ctx.pre.get(g)!.tierV;
       for (const g of trio) for (const r of trio) v += ctx.V(g, r, leader, true);
       // O(n) top-k selection of bench marginals (exact: bench contributions are additive)
       top.fill(-1); topV.fill(-Infinity);
@@ -177,10 +194,10 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
   }).slice(0, keep);
 }
 
-export function buildTeam(c: Candidate, db: Db): Team {
+export function buildTeam(c: Candidate, db: Db, rules: RulesetOptions = {}): Team {
   const slots = [...c.trio, ...c.bench].map((id) => (id !== undefined ? newMember(id, db.char(id)) : null));
   while (slots.length < 6) slots.push(null);
-  return { slots, leader: c.trio.indexOf(c.leader) };
+  return { slots, leader: c.trio.indexOf(c.leader), ruleset: rules.ruleset ?? 'standard', llBand: rules.llBand ?? 1 };
 }
 
 export const teamKey = (t: Team) => t.slots.map((m) => m?.charId ?? '-').join(',') + '@' + t.leader;
@@ -192,10 +209,11 @@ export function generateTeams(db: Db, o: GenerateOptions): GeneratedTeam[] {
   const usedSix = new Set<string>();
   for (const p of o.priorities) {
     o.onProgress?.(`Searching ${p}…`);
-    const ctx = new SearchContext(db, p, pool);
-    const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, o.perPriority ?? 6);
+    const rules = { ruleset: o.ruleset, llBand: o.llBand };
+    const ctx = new SearchContext(db, p, pool, rules);
+    const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, o.perPriority ?? 6, o.fighterPool);
     const evaluated = cands.map((c, i) => {
-      const team = withOptimizedEquipment(buildTeam(c, db), db, p, o.allowedEquipment);
+      const team = withOptimizedEquipment(buildTeam(c, db, rules), db, p, o.allowedEquipment);
       return { priority: p, team, evaluation: evaluateTeam(team, db, p, o.locked), candidateRank: i };
     }).sort((a, b) => b.evaluation.overall - a.evaluation.overall);
     const pick = evaluated.find((e) => !used.has(teamKey(e.team)) && !usedSix.has(sixKey(e.team))) ?? evaluated.find((e) => !used.has(teamKey(e.team)));

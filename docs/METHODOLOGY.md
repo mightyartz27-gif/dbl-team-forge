@@ -22,6 +22,16 @@ Mechanics follow the rules documented by DBL Optimizer's public guides (Z Abilit
 - Final gain = (1 + base) × (1 + pure) × (1 + direct) − 1. Same layer adds, different layers multiply.
 - "Effective Strike/Blast output" combines the ATK stat with Damage Inflicted.
 
+## Rating Match (PvP) tiers
+- Source: the official "Newest Rating Match Tier List" notice, mirrored on dblegends.net news. The newest post is found automatically (daily workflow); if parsing fails, the previous list is kept.
+- Tiers are a balancing system: bonuses are based on usage, so heavily used units sit in lower tiers. Tier C gets nothing.
+- In Rating Match mode each **fighter** gets its tier's Inflicted Damage UP (direct layer, like Damage Inflicted) and Damage Guard UP. Zenkai Awakened characters get the smaller "after Zenkai" values; units that can't be awakened always get the "before" values.
+- Featured LEGENDS LIMITED units also get the LL-exclusive base bonus (Health, Strike/Blast ATK and DEF, Critical) for the star band you select.
+- Bench members get no tier bonus, so the tier filter applies to fighters only; the bench is still chosen for its Z Abilities.
+- Characters missing from the published list ("not all characters are listed") are shown as *Not listed* and get no bonus in the math.
+- Effective defense combines DEF with Damage Guard multiplicatively — an approximation, since the exact in-game formula isn't published.
+- Stats reward high tier bonuses, but kit quality (cards, disruption, counters) isn't quantifiable: lock trusted units or filter fighter rarity.
+
 ## Not calculated (listed separately)
 Power Resonance (triggers at battle start), battle traits (counters, cover changes…), card-draw and Arts-cost effects, and any ability text the parser couldn't read with confidence (0.3% of Z Ability levels in the Sept 2026 database).
 

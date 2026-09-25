@@ -42,6 +42,7 @@ export function TeamCard({ r, index }: { r: GeneratedTeam; index: number }) {
         <Metric label="Blast ATK" value={fmtPct(m.blast)} />
         <Metric label="DEF avg" value={fmtPct((m.strikeDef + m.blastDef) / 2)} />
       </div>
+      {r.team.ruleset === 'rating' && <p className="mt-3 text-sm text-mute">Rating Match tier bonus: <span className="text-cream">+{Math.round(m.tierDmg)}% damage, +{Math.round(m.tierGuard)}% guard</span> (fighter average)</p>}
       <p className="mt-3 text-sm text-mute">
         Equipment: <span className="text-cream">{m.equipPieces}/9 pieces, {m.equipActive}/{m.equipConditional} conditions active</span>
         {m.wasted > 0 && <span className="block text-warn">{m.wasted} Z Abilit{m.wasted > 1 ? 'ies reach' : 'y reaches'} no fighter</span>}

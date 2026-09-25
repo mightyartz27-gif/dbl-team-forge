@@ -25,7 +25,7 @@ const COMPONENT_LABEL: Record<string, string> = {
 };
 
 export function TeamPage() {
-  const { db, current, setCurrent, results, pool } = useStore();
+  const { db, current, setCurrent, results, pool, llBand } = useStore();
   const { team, priority, locked, baseline } = current;
   const [tab, setTab] = useState<TabId>('summary');
   const [picking, setPicking] = useState<number | null>(null);
@@ -62,6 +62,15 @@ export function TeamPage() {
         <Formation team={team} coverage={ev.metrics.coverage} onSlot={(i) => (team.slots[i] ? setSlotMenu(i) : setPicking(i))} lockedIds={locked} />
       </div>
 
+      {db.data.pvp && (
+        <div className="mt-3 flex gap-2">
+          {(['standard', 'rating'] as const).map((r) => (
+            <Chip key={r} active={(team.ruleset ?? 'standard') === r} onClick={() => setTeam({ ...team, ruleset: r, llBand: team.llBand ?? llBand })}>
+              {r === 'standard' ? 'Standard' : 'Rating Match tiers'}
+            </Chip>
+          ))}
+        </div>
+      )}
       <div className="mt-3 scroll-x -mx-4 flex gap-2 px-4">
         {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setCurrent((c) => ({ ...c, priority: p.id }))}>{p.label}</Chip>)}
       </div>
@@ -404,11 +413,11 @@ function LeaderPanel({ team, priority, locked, setTeam }: { team: Team; priority
 
 // ------------------------------------------------------------------ improve
 function ImprovePanel({ team, ev, priority, pool, locked, setTeam, baseEv }: { team: Team; ev: TeamEval; priority: Priority; pool: number[]; locked: number[]; setTeam: (t: Team) => void; baseEv: TeamEval | null }) {
-  const { db, setCurrent } = useStore();
+  const { db, setCurrent, fighterPool } = useStore();
   const problems = useMemo(() => diagnose(team, ev, db), [team, ev, db]);
   const [swaps, setSwaps] = useState<Swap[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const run = () => { setBusy(true); setTimeout(() => { setSwaps(suggestSwaps(team, db, priority, pool, locked)); setBusy(false); }, 20); };
+  const run = () => { setBusy(true); setTimeout(() => { setSwaps(suggestSwaps(team, db, priority, pool, locked, 4, team.ruleset === 'rating' ? fighterPool : undefined)); setBusy(false); }, 20); };
   return (
     <>
       {baseEv && <WhatIf before={baseEv} after={ev} />}
@@ -418,7 +427,7 @@ function ImprovePanel({ team, ev, priority, pool, locked, setTeam, baseEv }: { t
         ) : <p className="text-ok">No problems found for this priority.</p>}
       </Section>
       <Section title="Suggested changes">
-        <p className="mb-3 text-sm text-mute">Tests the strongest single replacement for every unlocked slot and keeps the ones that raise the score.</p>
+        <p className="mb-3 text-sm text-mute">Tests the strongest single replacement for every unlocked slot and keeps the ones that raise the score.{team.ruleset === 'rating' ? ' Fighter replacements come from your selected tiers.' : ''}</p>
         {!swaps && <Button onClick={run} disabled={busy}>{busy ? 'Testing replacements…' : 'Optimize team'}</Button>}
         {swaps && !swaps.length && <p className="text-mute">No single swap improves this team under the current priority.</p>}
         <ul className="grid gap-2">

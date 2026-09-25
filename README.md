@@ -14,6 +14,7 @@ Unofficial fan project. Not affiliated with Bandai Namco. Character and equipmen
 - **Improve this team** — problems detected (low coverage, wasted Z Abilities, inactive Zenkai or equipment conditions) and single swaps ranked by score gain.
 - **What-if** — change anything and see before / after / difference instantly.
 - **Compare** — side-by-side table of all generated teams.
+- **Rating Match (PvP) mode** — the official tier list (Featured, Z, S, A, B, C) is imported automatically every day; tier bonuses are added to fighters' stats, fighters can be limited to chosen tiers (default Featured–B) and rarities, and teams can be suggested with no locked character.
 - **My box** — mark owned characters (or paste card codes) and generate from your box only.
 - **Transparency** — the score is a configurable internal metric with its breakdown shown; effects that can't be quantified are listed as *Not calculated*, never guessed.
 
@@ -47,7 +48,7 @@ The UI never touches raw data; new characters and equipment arrive through inges
 1. Upload these files to a public GitHub repository.
 2. Settings → Pages → Source: **GitHub Actions**.
 3. `.github/workflows/deploy-pages.yml` builds, tests and publishes to `https://<you>.github.io/<repo>/` on every change.
-4. `.github/workflows/refresh-data.yml` refreshes the game data twice a week and triggers a redeploy.
+4. `.github/workflows/refresh-data.yml` refreshes the game data twice a week and `refresh-tiers.yml` checks the PvP tier list daily; both trigger a redeploy.
 
 Supabase and Netlify are optional (see below).
 

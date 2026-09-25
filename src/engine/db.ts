@@ -1,4 +1,4 @@
-import type { Character, Equipment, GameData, Tag } from '../data/types';
+import type { Character, Equipment, GameData, Tag, TierId } from '../data/types';
 
 /** Indexed, read-only view of the game data used by every engine function. */
 export class Db {
@@ -22,6 +22,11 @@ export class Db {
     const c = this.chars.get(id);
     if (!c) throw new Error(`Unknown character ${id}`);
     return c;
+  }
+  /** Rating Match tier of a character, or null when the official list doesn't include it. */
+  tierOf(id: number): TierId | null {
+    const c = this.chars.get(id);
+    return (c && this.data.pvp?.tiers[c.card.toUpperCase()]) || null;
   }
   tagName(id: number): string { return this.tags.get(id)?.name ?? `#${id}`; }
   tagSet(id: number): Set<number> { return this.tagSets.get(id) ?? new Set(); }

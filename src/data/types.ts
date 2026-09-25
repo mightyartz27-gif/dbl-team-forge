@@ -79,4 +79,15 @@ export interface DbMeta {
   parse: Record<string, number>;
 }
 
-export interface GameData { characters: Character[]; equipment: Equipment[]; tags: Tag[]; meta: DbMeta }
+/** Official Rating Match tiers (Featured, Z, S, A, B, C). Bonuses are a balancing boost: less-used characters get more. */
+export type TierId = 'featured' | 'Z' | 'S' | 'A' | 'B' | 'C';
+export interface TierBonus { dmg: number; guard: number; llBonus: boolean }
+export interface PvpData {
+  source: string; url: string; title: string; seasonStart: string; seasons: number; fetchedAt: string; newsId: number;
+  bonus: Record<TierId, { pre: TierBonus; post: TierBonus }>;
+  llBands: { stars: string; value: number }[];
+  /** card code (upper case) → tier */
+  tiers: Record<string, TierId>;
+}
+
+export interface GameData { characters: Character[]; equipment: Equipment[]; tags: Tag[]; meta: DbMeta; pvp?: PvpData | null }

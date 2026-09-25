@@ -4,6 +4,7 @@ import { attackType } from '../engine/weights';
 import { useStore } from '../state/store';
 import { CharAvatar } from './CharAvatar';
 import { prettyAbility } from '../lib/text';
+import { TIER_LABEL, tierKey } from '../engine/pvp';
 import { Button, Sheet } from './ui';
 
 const KIND_LABEL: Record<string, string> = { class: 'Tags', episode: 'Episode', character: 'Character', style: 'Battle style', rarity: 'Rarity', color: 'Color', card: 'Card', other: 'Other' };
@@ -52,6 +53,18 @@ export function CharacterSheet() {
               <div className="text-mute">Mostly {attackType(c) === 'mixed' ? 'Strike and Blast' : attackType(c) === 'strike' ? 'Strike' : 'Blast'} by base stats{c.zenkai ? ', Zenkai available' : ''}</div>
             </div>
           </div>
+          {db.data.pvp && (() => {
+            const t = tierKey(db, c.id);
+            const b = t !== 'unlisted' ? db.data.pvp!.bonus[t] : null;
+            return (
+              <div className="mb-4 rounded-xl bg-panel p-3 text-sm">
+                <div className="font-semibold">Rating Match: {TIER_LABEL[t]}</div>
+                <div className="text-mute">
+                  {b ? `+${b.pre.dmg}% damage, +${b.pre.guard}% guard${b.pre.llBonus && c.lf ? ', plus the LL base-stat bonus' : ''}${c.zenkai ? `; after Zenkai +${b.post.dmg}% / +${b.post.guard}%` : ''}.` : "Not on the published list; check in game."}
+                </div>
+              </div>
+            );
+          })()}
           <div className="mb-4 grid grid-cols-2 gap-2">
             <Button onClick={() => { setLocked([...new Set([...locked, c.id])].slice(-3)); openChar(null); go('build'); }}>Build around</Button>
             <Button kind="ghost" onClick={addToTeam}>Add to my team</Button>

@@ -7,7 +7,7 @@ import type { Priority } from './weights';
 let db: Db | null = null;
 export type WorkerIn =
   | { type: 'init'; data: GameData }
-  | { type: 'generate'; id: number; locked: number[]; lockedBench: number[]; pool: number[]; priorities: Priority[] };
+  | { type: 'generate'; id: number; locked: number[]; lockedBench: number[]; pool: number[]; priorities: Priority[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number };
 export type WorkerOut =
   | { type: 'ready' }
   | { type: 'progress'; id: number; result: GeneratedTeam; done: number; total: number }
@@ -23,7 +23,7 @@ self.onmessage = (ev: MessageEvent<WorkerIn>) => {
       // so pass the full list and stream from its onProgress hook.
       const seen: GeneratedTeam[] = [];
       const res = generateTeams(db, {
-        locked: msg.locked, lockedBench: msg.lockedBench, pool: msg.pool, priorities: msg.priorities,
+        locked: msg.locked, lockedBench: msg.lockedBench, pool: msg.pool, priorities: msg.priorities, fighterPool: msg.fighterPool, ruleset: msg.ruleset, llBand: msg.llBand,
         onResult: (r) => { seen.push(r); (self as unknown as Worker).postMessage({ type: 'progress', id: msg.id, result: r, done: seen.length, total: msg.priorities.length }); },
       });
       void res;

@@ -4,7 +4,8 @@ import { emptyFilter, searchChars } from '../lib/search';
 import { useStore } from '../state/store';
 
 export function HomePage() {
-  const { db, box, setLocked, go, origin } = useStore();
+  const { db, box, setLocked, go, origin, setRuleset } = useStore();
+  const pvp = db.data.pvp;
   const [q, setQ] = useState('');
   const hits = useMemo(() => (q.trim() ? searchChars(db, { ...emptyFilter(), q }, box).slice(0, 8) : []), [q, db, box]);
   const fresh = useMemo(() => db.data.characters.filter((c) => c.rarity === 'ULTRA' || c.lf).slice(0, 12), [db]);
@@ -45,6 +46,13 @@ export function HomePage() {
           </button>
         ))}
       </div>
+
+      {pvp && (
+        <button onClick={() => { setRuleset('rating'); go('build'); }} className="mt-8 w-full rounded-2xl border-2 border-gi bg-panel p-4 text-left hover:bg-panel-2">
+          <div className="font-display text-xl font-bold">Build for Rating Match</div>
+          <p className="text-sm text-mute">Uses the official tier list for the season from {pvp.seasonStart}: {Object.keys(pvp.tiers).length} characters ranked Featured to C, with tier bonuses counted in every stat.</p>
+        </button>
+      )}
 
       <div className="mt-8 grid gap-3 md:grid-cols-3">
         <button onClick={() => go('build')} className="rounded-2xl bg-panel p-4 text-left hover:bg-panel-2">

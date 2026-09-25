@@ -1,5 +1,6 @@
 import type { Character, Color } from '../data/types';
 import type { Db } from '../engine/db';
+import { tierKey, type TierFilterKey } from '../engine/pvp';
 
 export interface CharFilter {
   q: string;
@@ -8,8 +9,9 @@ export interface CharFilter {
   zenkai: boolean;
   boxOnly: boolean;
   tag: number | null;
+  tiers: Set<TierFilterKey>;
 }
-export const emptyFilter = (): CharFilter => ({ q: '', rarity: new Set(), colors: new Set(), zenkai: false, boxOnly: false, tag: null });
+export const emptyFilter = (): CharFilter => ({ q: '', rarity: new Set(), colors: new Set(), zenkai: false, boxOnly: false, tag: null, tiers: new Set() });
 
 export function searchChars(db: Db, f: CharFilter, box: Set<number>): Character[] {
   const q = f.q.trim().toLowerCase();
@@ -24,6 +26,7 @@ export function searchChars(db: Db, f: CharFilter, box: Set<number>): Character[
       if (!ok) continue;
     }
     if (f.tag !== null && !c.tags.includes(f.tag)) continue;
+    if (f.tiers.size && !f.tiers.has(tierKey(db, c.id))) continue;
     let score = 1;
     if (q) {
       const name = c.name.toLowerCase();

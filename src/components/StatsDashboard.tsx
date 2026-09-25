@@ -19,6 +19,7 @@ export function StatsDashboard({ team, ev }: { team: Team; ev: TeamEval }) {
   if (!ms || !m) return <p className="text-mute">Add fighters to see their stats.</p>;
   const c = db.char(m.charId);
   const extras = EXTRA.filter((k) => sum(ms.stats[k].total) !== 0);
+  const hasTier = !!ms.tier;
   return (
     <div>
       <div className="mb-4 grid grid-cols-3 gap-2" role="tablist">
@@ -41,6 +42,7 @@ export function StatsDashboard({ team, ev }: { team: Team; ev: TeamEval }) {
               <th className="py-2 text-right font-semibold">Z + Assault</th>
               <th className="py-2 text-right font-semibold">Zenkai</th>
               <th className="py-2 text-right font-semibold">Equipment<div className="text-[10px] font-normal">base / pure / direct</div></th>
+              {hasTier && <th className="py-2 text-right font-semibold">Tier</th>}
               <th className="py-2 text-right font-semibold text-cream">Final</th>
             </tr>
           </thead>
@@ -54,6 +56,7 @@ export function StatsDashboard({ team, ev }: { team: Team; ev: TeamEval }) {
                   <td className="num py-2 text-right">{z ? fmtPct(z) : '—'}</td>
                   <td className="num py-2 text-right">{zk ? fmtPct(zk) : '—'}</td>
                   <td className="num py-2 text-right text-mute">{sum(e) ? `${Math.round(e.base)} / ${Math.round(e.pure)} / ${Math.round(e.direct)}` : '—'}</td>
+                  {hasTier && <td className="num py-2 text-right">{sum(s.bySource.tier) ? fmtPct(sum(s.bySource.tier)) : '—'}</td>}
                   <td className="num py-2 text-right text-base font-bold text-gi">{fmtPct(s.final)}</td>
                 </tr>
               );
@@ -63,6 +66,8 @@ export function StatsDashboard({ team, ev }: { team: Team; ev: TeamEval }) {
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-panel p-3"><div className="text-xs text-mute">Effective Strike output</div><div className="num text-2xl font-bold">{fmtPct(ms.offense.strike)}</div><div className="text-[11px] text-mute">Strike ATK × Damage Inflicted</div></div>
+        <div className="rounded-xl bg-panel p-3"><div className="text-xs text-mute">Effective Strike defense</div><div className="num text-2xl font-bold">{fmtPct(ms.defense.strike)}</div><div className="text-[11px] text-mute">Strike DEF × Damage Guard</div></div>
+        <div className="rounded-xl bg-panel p-3"><div className="text-xs text-mute">Effective Blast defense</div><div className="num text-2xl font-bold">{fmtPct(ms.defense.blast)}</div><div className="text-[11px] text-mute">Blast DEF × Damage Guard</div></div>
         <div className="rounded-xl bg-panel p-3"><div className="text-xs text-mute">Effective Blast output</div><div className="num text-2xl font-bold">{fmtPct(ms.offense.blast)}</div><div className="text-[11px] text-mute">Blast ATK × Damage Inflicted</div></div>
       </div>
       {c.base && (

@@ -5,6 +5,7 @@ import type { GeneratedTeam } from '../engine/generator';
 import { Runner } from '../engine/runner';
 import { PRIORITIES, type Priority } from '../engine/weights';
 import { emptyTeam, type Team } from '../engine/zAbilities';
+import { DEFAULT_TIER_FILTER, tierKey, type TierFilterKey } from '../engine/pvp';
 
 export type Page = 'home' | 'build' | 'team' | 'compare' | 'characters' | 'equipment';
 
@@ -30,6 +31,17 @@ interface Store {
   boxOnly: boolean;
   setBoxOnly: (b: boolean) => void;
   pool: number[];
+  // Rating Match (PvP)
+  ruleset: 'standard' | 'rating';
+  setRuleset: (r: 'standard' | 'rating') => void;
+  tierFilter: Set<TierFilterKey>;
+  toggleTier: (t: TierFilterKey) => void;
+  llBand: number;
+  setLlBand: (n: number) => void;
+  fighterRarity: Set<string>;
+  toggleFighterRarity: (r: string) => void;
+  /** characters allowed as fighters under the current mode and filters */
+  fighterPool: number[];
   // generator
   locked: number[];
   setLocked: (ids: number[]) => void;
@@ -92,6 +104,24 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
   const setBoxOnly = (b: boolean) => { write('dbl.boxOnly', b); setBoxOnlyState(b); };
   const pool = useMemo(() => (boxOnly && box.size ? [...box] : data.characters.map((c) => c.id)), [boxOnly, box, data]);
 
+  const [ruleset, setRulesetState] = useState<'standard' | 'rating'>(() => (data.pvp ? read('dbl.ruleset', 'standard') : 'standard'));
+  const setRuleset = (r: 'standard' | 'rating') => { write('dbl.ruleset', r); setRulesetState(r); };
+  const [tierFilter, setTierFilter] = useState<Set<TierFilterKey>>(() => new Set(read<TierFilterKey[]>('dbl.tiers', DEFAULT_TIER_FILTER)));
+  const toggleTier = (t: TierFilterKey) => setTierFilter((s) => { const n = new Set(s); n.has(t) ? n.delete(t) : n.add(t); write('dbl.tiers', [...n]); return n; });
+  const [llBand, setLlBandState] = useState<number>(() => read('dbl.llBand', 1));
+  const setLlBand = (n: number) => { write('dbl.llBand', n); setLlBandState(n); };
+  const [fighterRarity, setFighterRarity] = useState<Set<string>>(() => new Set(read<string[]>('dbl.fRarity', [])));
+  const toggleFighterRarity = (r: string) => setFighterRarity((s) => { const n = new Set(s); n.has(r) ? n.delete(r) : n.add(r); write('dbl.fRarity', [...n]); return n; });
+  const fighterPool = useMemo(() => {
+    if (ruleset !== 'rating') return pool;
+    return pool.filter((id) => {
+      if (!tierFilter.has(tierKey(db, id))) return false;
+      if (!fighterRarity.size) return true;
+      const c = db.char(id);
+      return (fighterRarity.has('LL') && c.lf) || fighterRarity.has(c.rarity);
+    });
+  }, [ruleset, pool, tierFilter, fighterRarity, db]);
+
   const [locked, setLockedState] = useState<number[]>(() => read<number[]>('dbl.locked', []).filter((id) => db.chars.has(id)));
   const setLocked = (ids: number[]) => { write('dbl.locked', ids); setLockedState(ids); };
   const [priority, setPriorityState] = useState<Priority>(() => read('dbl.priority', 'balanced'));
@@ -117,6 +147,7 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
 
   const value: Store = {
     db, origin, runner: runnerRef.current, page, go, box, toggleBox, setBox, boxOnly, setBoxOnly, pool,
+    ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool,
     locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating,
     current, setCurrent, openTeam, charSheet, openChar, equipSheet, openEquip,
   };
