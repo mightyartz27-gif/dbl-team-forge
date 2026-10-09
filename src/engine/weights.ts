@@ -18,16 +18,39 @@ export const PRIORITIES: { id: Priority; label: string; blurb: string }[] = [
 ];
 
 export type AttackType = 'strike' | 'blast' | 'mixed';
+/** Strike / Blast lean: a clear base-stat lean wins; otherwise the kit's own Strike/Blast boosts decide. */
 export function attackType(c: Character): AttackType {
-  if (!c.base) return 'mixed';
-  const r = c.base.sa / Math.max(1, c.base.ba);
-  return r > 1.08 ? 'strike' : r < 0.93 ? 'blast' : 'mixed';
+  if (c.base) {
+    const r = c.base.sa / Math.max(1, c.base.ba);
+    if (r > 1.08) return 'strike';
+    if (r < 0.93) return 'blast';
+  }
+  const k = c.kitBias;
+  if (k) {
+    if (k.s >= k.b + 2 && k.s >= k.b * 1.5) return 'strike';
+    if (k.b >= k.s + 2 && k.b >= k.s * 1.5) return 'blast';
+  }
+  return 'mixed';
 }
 
 type W = Partial<Record<StatKey, number>>;
 const BASE_W: W = { hp: 1.1, sd: 0.45, bd: 0.45, crit: 0.15, critDmg: 0.1, dmg: 0.8, dmgSpecial: 0.25, dmgUltimate: 0.2, dmgGuard: 0.4, dmgCut: 0.4, ki: 0.1, heal: 0.1, dmgStrikeArts: 0.2, dmgBlastArts: 0.2 };
 
-export function statWeights(p: Priority, t: AttackType): W {
+/** Analysis options shared by the generator and every team evaluation. */
+export type Coverage = 'both' | 'strike' | 'blast';
+export interface EvalOptions {
+  /** which defense matters: against Strike, Blast, or both */
+  coverage: Coverage;
+  /** 0 = pure carry (team average), 1 = protect the weakest fighter; blended per component */
+  floor: number;
+  /** reward fighters whose Strike/Blast buffs match their own Strike/Blast stats */
+  cohesion: boolean;
+  /** search breadth */
+  depth: 'quick' | 'thorough';
+}
+export const DEFAULT_EVAL: EvalOptions = { coverage: 'both', floor: 0.15, cohesion: true, depth: 'quick' };
+
+export function statWeights(p: Priority, t: AttackType, coverage: Coverage = 'both'): W {
   const w: W = { ...BASE_W };
   const main = t === 'strike' ? 'sa' : 'ba';
   if (t === 'mixed') { w.sa = 0.6; w.ba = 0.6; w.dmgStrike = 0.35; w.dmgBlast = 0.35; }
@@ -39,15 +62,17 @@ export function statWeights(p: Priority, t: AttackType): W {
     case 'health': w.hp = 2.4; w.sd = 0.6; w.bd = 0.6; break;
     case 'damage': w.dmg = 1.5; w.dmgSpecial = 0.5; w.dmgUltimate = 0.4; break;
   }
+  if (coverage === 'strike') { w.sd = (w.sd ?? 0) * 1.8; w.bd = (w.bd ?? 0) * 0.25; }
+  if (coverage === 'blast') { w.bd = (w.bd ?? 0) * 1.8; w.sd = (w.sd ?? 0) * 0.25; }
   return w;
 }
 
 /** Weight of each score component per priority. */
 export interface ComponentWeights {
   battleSynergy: number; zEfficiency: number; zenkaiEfficiency: number; healthSupport: number;
-  offense: number; defense: number; equipment: number; coverage: number; leaderEfficiency: number; locked: number;
+  offense: number; defense: number; equipment: number; coverage: number; leaderEfficiency: number; locked: number; cohesion: number;
 }
-const CW_BASE: ComponentWeights = { battleSynergy: 0.7, zEfficiency: 1, zenkaiEfficiency: 0.8, healthSupport: 0.9, offense: 0.8, defense: 0.6, equipment: 0.5, coverage: 0.6, leaderEfficiency: 0.3, locked: 1 };
+const CW_BASE: ComponentWeights = { battleSynergy: 0.7, zEfficiency: 1, zenkaiEfficiency: 0.8, healthSupport: 0.9, offense: 0.8, defense: 0.6, equipment: 0.5, coverage: 0.6, leaderEfficiency: 0.3, locked: 1, cohesion: 0.8 };
 export function componentWeights(p: Priority): ComponentWeights {
   const w = { ...CW_BASE };
   switch (p) {

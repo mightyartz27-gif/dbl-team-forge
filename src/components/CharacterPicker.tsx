@@ -7,7 +7,9 @@ import { Chip, Sheet } from './ui';
 import { TierBadge } from './TierBadge';
 import { TIERS, TIER_LABEL, type TierFilterKey } from '../engine/pvp';
 
-export const RARITY_CHIPS = [['ULTRA', 'UL'], ['LL', 'LL'], ['SPARKING', 'SP'], ['EXTREME', 'EX'], ['HERO', 'HE']] as const;
+export const RARITY_CHIPS = [['ULTRA', 'UL'], ['LEGEND', 'LR'], ['LL', 'LL'], ['SPARKING', 'SP'], ['EXTREME', 'EX'], ['HERO', 'HE']] as const;
+export const STYLE_CHIPS = [['Melee Type', 'Melee'], ['Ranged Type', 'Ranged'], ['Defense Type', 'Defense'], ['Support Type', 'Support']] as const;
+export const GIVES_CHIPS = [['hp', '+HP'], ['dmg', '+DMG'], ['crit', '+CRIT'], ['heal', '+HEAL']] as const;
 export const COLORS: Color[] = ['RED', 'YEL', 'PUR', 'GRN', 'BLU', 'LGT'];
 
 export function FilterBar({ f, setF, showBox = true }: { f: CharFilter; setF: (f: CharFilter) => void; showBox?: boolean }) {
@@ -21,6 +23,8 @@ export function FilterBar({ f, setF, showBox = true }: { f: CharFilter; setF: (f
         {RARITY_CHIPS.map(([k, l]) => <Chip key={k} active={f.rarity.has(k)} onClick={() => setF({ ...f, rarity: toggle(f.rarity, k) })}>{l}</Chip>)}
         <Chip active={f.zenkai} onClick={() => setF({ ...f, zenkai: !f.zenkai })}>Zenkai</Chip>
         {showBox && <Chip active={f.boxOnly} onClick={() => setF({ ...f, boxOnly: !f.boxOnly })}>My box ({box.size})</Chip>}
+        {STYLE_CHIPS.map(([k, l]) => <Chip key={k} active={f.styles.has(k)} onClick={() => setF({ ...f, styles: toggle(f.styles, k) })}>{l}</Chip>)}
+        {GIVES_CHIPS.map(([k, l]) => <Chip key={k} active={f.gives.has(k)} onClick={() => setF({ ...f, gives: toggle(f.gives, k) })}>{l}</Chip>)}
         {db.data.pvp && ([...TIERS, 'unlisted'] as TierFilterKey[]).map((t) => <Chip key={t} active={f.tiers.has(t)} onClick={() => setF({ ...f, tiers: toggle(f.tiers, t) })}>{TIER_LABEL[t]}</Chip>)}
         {COLORS.map((c) => (
           <Chip key={c} active={f.colors.has(c)} tone={EL_COLOR[c]} onClick={() => setF({ ...f, colors: toggle(f.colors, c) })}>

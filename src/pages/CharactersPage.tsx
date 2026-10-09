@@ -6,7 +6,7 @@ import { emptyFilter, searchChars, type CharFilter } from '../lib/search';
 import { useStore } from '../state/store';
 
 export function CharactersPage() {
-  const { db, box, toggleBox, setBox, openChar } = useStore();
+  const { db, box, toggleBox, setBox, openChar, boxZenkai, toggleBoxZenkai, setBoxZenkai } = useStore();
   const [f, setF] = useState<CharFilter>(emptyFilter);
   const [boxMode, setBoxMode] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -30,10 +30,12 @@ export function CharactersPage() {
       </div>
       {boxMode && (
         <div className="mb-3 rounded-xl bg-panel p-3 text-sm">
-          Tap characters to mark them as owned. Recommendations can then use only your box.
+          Tap characters to mark them as owned. For Zenkai characters you own, tap the small Z to mark them as Zenkai Awakened; owned characters without it are counted without Zenkai.
           <div className="mt-2 flex flex-wrap gap-2">
             <Button small kind="ghost" onClick={() => setImporting(true)}>Import card codes</Button>
             <Button small kind="ghost" onClick={() => setBox([...new Set([...box, ...list.map((c) => c.id)])])}>Add all shown</Button>
+            <Button small kind="ghost" onClick={() => setBoxZenkai([...new Set([...boxZenkai, ...list.filter((c) => c.zenkai && box.has(c.id)).map((c) => c.id)])])}>Mark shown as Zenkai Awakened</Button>
+            <Button small kind="ghost" onClick={() => { const shown = new Set(list.map((c) => c.id)); setBoxZenkai([...boxZenkai].filter((id) => !shown.has(id))); }}>Mark shown as not awakened</Button>
             {box.size > 0 && <Button small kind="quiet" onClick={() => confirm('Clear your whole box?') && setBox([])}>Clear box</Button>}
           </div>
         </div>
@@ -41,10 +43,15 @@ export function CharactersPage() {
       <FilterBar f={f} setF={(x) => { setF(x); setLimit(60); }} />
       <ul className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-6 md:grid-cols-8">
         {list.slice(0, limit).map((c) => (
-          <li key={c.id}>
+          <li key={c.id} className="relative">
+            {boxMode && c.zenkai && box.has(c.id) && (
+              <button onClick={() => toggleBoxZenkai(c.id)} aria-pressed={boxZenkai.has(c.id)} aria-label={`${c.name}: Zenkai Awakened`}
+                style={{ left: 'calc(50% - 32px - 10px)', top: '-8px' }}
+                className={`absolute z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ring-2 ring-ink ${boxZenkai.has(c.id) ? 'bg-el-yel text-ink' : 'bg-panel-2 text-mute line-through'}`}>Z</button>
+            )}
             <button onClick={() => (boxMode ? toggleBox(c.id) : openChar(c.id))} className="flex w-full flex-col items-center gap-1.5 text-center" aria-pressed={boxMode ? box.has(c.id) : undefined}>
               <div className="relative">
-                <CharAvatar c={c} size={64} dim={boxMode && !box.has(c.id)} />
+                <CharAvatar c={c} size={64} dim={boxMode && !box.has(c.id)} hideZenkai={boxMode && box.has(c.id)} />
                 {box.has(c.id) && <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-ok text-[11px] font-black text-ink">✓</span>}
               </div>
               <span className="line-clamp-2 text-[11px] leading-tight text-mute">{c.name}</span>

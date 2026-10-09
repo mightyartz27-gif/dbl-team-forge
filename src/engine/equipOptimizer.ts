@@ -2,7 +2,7 @@ import type { Layer, StatKey } from '../data/types';
 import type { Db } from './db';
 import { evalEquip, equipBonuses } from './equipment';
 import { computeSheet } from './stats';
-import { attackType, statWeights, type Priority } from './weights';
+import { attackType, statWeights, type Coverage, type Priority } from './weights';
 import type { EquipChoice, Team } from './zAbilities';
 
 type Buckets = Partial<Record<StatKey, Record<Layer, number>>>;
@@ -58,10 +58,10 @@ export interface EquipPick { choice: EquipChoice; gain: number }
  * Because layers multiply, the greedy naturally spreads bonuses across base / pure / direct.
  * `allowed` restricts to a user's owned equipment ids.
  */
-export function optimizeEquipment(team: Team, slot: number, db: Db, p: Priority, allowed?: Set<number>): EquipPick[] {
+export function optimizeEquipment(team: Team, slot: number, db: Db, p: Priority, allowed?: Set<number>, coverage: Coverage = 'both'): EquipPick[] {
   const m = team.slots[slot];
   if (!m) return [];
-  const w = statWeights(p, attackType(db.char(m.charId)));
+  const w = statWeights(p, attackType(db.char(m.charId)), coverage);
   const bare: Team = { ...team, slots: team.slots.map((x, i) => (i === slot && x ? { ...x, equipment: [null, null, null] } : x)) };
   const sheet = computeSheet(bare, db).members[slot]!;
   const buckets: Buckets = {};
@@ -99,11 +99,11 @@ export function optimizeEquipment(team: Team, slot: number, db: Db, p: Priority,
 }
 
 /** Return a copy of the team with optimized equipment on every battle member. */
-export function withOptimizedEquipment(team: Team, db: Db, p: Priority, allowed?: Set<number>): Team {
+export function withOptimizedEquipment(team: Team, db: Db, p: Priority, allowed?: Set<number>, coverage: Coverage = 'both'): Team {
   let t: Team = team;
   for (const slot of [0, 1, 2]) {
     if (!t.slots[slot]) continue;
-    const picks = optimizeEquipment(t, slot, db, p, allowed);
+    const picks = optimizeEquipment(t, slot, db, p, allowed, coverage);
     const eq = [0, 1, 2].map((i) => picks[i]?.choice ?? null);
     t = { ...t, slots: t.slots.map((x, i) => (i === slot && x ? { ...x, equipment: eq } : x)) };
   }

@@ -2,7 +2,7 @@ import type { StatKey } from '../data/types';
 import type { Db } from './db';
 import { computeSheet, type MemberSheet, type Source, type TeamSheet } from './stats';
 import { abilitiesOf, BATTLE, type Team, type ZSource } from './zAbilities';
-import { attackType, componentWeights, REF, saturate, statWeights, WASTED_PENALTY, type ComponentWeights, type Priority } from './weights';
+import { attackType, componentWeights, DEFAULT_EVAL, REF, saturate, statWeights, WASTED_PENALTY, type AttackType, type ComponentWeights, type EvalOptions, type Priority } from './weights';
 
 export const SYNERGY_TAG_KINDS = new Set(['class', 'episode', 'character']);
 
@@ -20,6 +20,15 @@ export interface AbilityUse {
 
 export interface Uncalculated { slot: number; label: string; detail: string }
 
+/** Stats shown in the "stacked output" table (sum of every source and layer). */
+export const STACK_STATS: StatKey[] = ['hp', 'sa', 'ba', 'sd', 'bd', 'dmg', 'dmgGuard', 'ki'];
+export interface Stacked { slot: number; style: AttackType; total: number; stats: Record<string, number>; cohesion: number }
+
+/** Letter grade for the optimizer score (internal metric, not a game rank). */
+export function grade(score: number): string {
+  return score >= 85 ? 'S+' : score >= 75 ? 'S' : score >= 65 ? 'A' : score >= 55 ? 'B' : score >= 45 ? 'C' : 'D';
+}
+
 export interface TeamEval {
   sheet: TeamSheet;
   components: Record<keyof ComponentWeights, number>;
@@ -33,6 +42,11 @@ export interface TeamEval {
     equipActive: number; equipConditional: number; equipPieces: number;
     coverage: number[];
     sharedTags: { id: number; count: number }[];
+    /** sum of every fighter's stacked TOTAL */
+    abilityBonus: number;
+    stacked: Stacked[];
+    styles: { strike: number; blast: number; mixed: number };
+    grade: string;
   };
   abilities: AbilityUse[];
   uncalculated: Uncalculated[];
@@ -40,9 +54,9 @@ export interface TeamEval {
 
 const clamp = (x: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
 
-export function weightedGain(ms: MemberSheet, team: Team, db: Db, p: Priority, sources: Source[]): number {
+export function weightedGain(ms: MemberSheet, team: Team, db: Db, p: Priority, sources: Source[], opts: EvalOptions = DEFAULT_EVAL): number {
   const c = db.char(team.slots[ms.slot]!.charId);
-  const w = statWeights(p, attackType(c));
+  const w = statWeights(p, attackType(c), opts.coverage);
   let s = 0;
   for (const [k, wt] of Object.entries(w) as [StatKey, number][]) {
     const line = ms.stats[k];
@@ -73,11 +87,28 @@ export function synergyScore(shared: { count: number }[]): number {
   return clamp(shared.reduce((s, t) => s + (t.count >= 3 ? 25 : 6), 0));
 }
 
-export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[] = []): TeamEval {
+/** How well a fighter's ATK buffs line up with its own Strike/Blast stats (0..1). */
+function cohesionOf(ms: MemberSheet, style: AttackType): number {
+  const sum = (k: StatKey) => { const t = ms.stats[k].total; return t.base + t.pure + t.direct; };
+  const s = Math.max(0, sum('sa') + sum('dmgStrike') + sum('dmgStrikeArts'));
+  const b = Math.max(0, sum('ba') + sum('dmgBlast') + sum('dmgBlastArts'));
+  if (s + b <= 0) return 0.5;
+  if (style === 'strike') return s / (s + b);
+  if (style === 'blast') return b / (s + b);
+  return 1 - Math.abs(s - b) / (s + b);
+}
+
+export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[] = [], opts: EvalOptions = DEFAULT_EVAL): TeamEval {
   const sheet = computeSheet(team, db);
   const battle = BATTLE.map((i) => sheet.members[i]).filter((m): m is MemberSheet => !!m);
   const n = Math.max(1, battle.length);
-  const avg = (f: (m: MemberSheet) => number) => battle.reduce((s, m) => s + f(m), 0) / n;
+  const mean = (f: (m: MemberSheet) => number) => battle.reduce((s, m) => s + f(m), 0) / n;
+  // "Team balance": blend the team average with the weakest fighter
+  const avg = (f: (m: MemberSheet) => number) => {
+    if (!battle.length) return 0;
+    const lo = Math.min(...battle.map(f));
+    return (1 - opts.floor) * mean(f) + opts.floor * lo;
+  };
 
   // ability usage (for tree, wasted, Zenkai count)
   const abilities: AbilityUse[] = [];
@@ -102,12 +133,12 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
   });
 
   const zSources: Source[] = ['z', 'assault'];
-  const zVal = avg((m) => weightedGain(m, team, db, p, zSources));
-  const zkVal = avg((m) => weightedGain(m, team, db, p, ['zenkai']));
-  const eqVal = avg((m) => weightedGain(m, team, db, p, ['equip']));
+  const zVal = avg((m) => weightedGain(m, team, db, p, zSources, opts));
+  const zkVal = avg((m) => weightedGain(m, team, db, p, ['zenkai'], opts));
+  const eqVal = avg((m) => weightedGain(m, team, db, p, ['equip'], opts));
   const hp = avg((m) => m.stats.hp.final);
   const off = avg((m) => relevantOffense(m, team, db));
-  const def = avg((m) => (m.defense.strike + m.defense.blast) / 2);
+  const def = avg((m) => (opts.coverage === 'strike' ? m.defense.strike : opts.coverage === 'blast' ? m.defense.blast : (m.defense.strike + m.defense.blast) / 2));
   const rating = team.ruleset === 'rating';
   const cov = battle.map((m) => m.coverage);
 
@@ -124,13 +155,24 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
     const all: Source[] = ['z', 'zenkai', 'assault'];
     for (const i of BATTLE) {
       const a = sheet.members[i], b = noLead.members[i];
-      if (a && b) leaderGain += weightedGain(a, team, db, p, all) - weightedGain(b, team, db, p, all);
+      if (a && b) leaderGain += weightedGain(a, team, db, p, all, opts) - weightedGain(b, team, db, p, all, opts);
     }
   }
 
   const shared = sharedTags(team, db);
   const lockedSlots = BATTLE.filter((i) => team.slots[i] && lockedIds.includes(team.slots[i]!.charId));
   const lockedCov = lockedSlots.length ? lockedSlots.reduce<number>((s, i) => s + (sheet.members[i]?.coverage ?? 0), 0) / lockedSlots.length : 1;
+
+  const stacked: Stacked[] = battle.map((ms) => {
+    const style = attackType(db.char(team.slots[ms.slot]!.charId));
+    const stats: Record<string, number> = {};
+    let total = 0;
+    for (const k of STACK_STATS) { const t = ms.stats[k].total; stats[k] = t.base + t.pure + t.direct; total += stats[k]; }
+    return { slot: ms.slot, style, total, stats, cohesion: cohesionOf(ms, style) };
+  });
+  const styles = { strike: 0, blast: 0, mixed: 0 };
+  stacked.forEach((s) => { styles[s.style]++; });
+  const cohesionVal = stacked.length ? stacked.reduce((s, x) => s + x.cohesion, 0) / stacked.length : 0;
 
   const components: Record<keyof ComponentWeights, number> = {
     battleSynergy: synergyScore(shared),
@@ -143,26 +185,29 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
     coverage: clamp((cov.reduce((s, x) => s + x, 0) / Math.max(1, cov.length)) * 100),
     leaderEfficiency: saturate(leaderGain, REF.leader),
     locked: clamp(lockedCov * 100),
+    cohesion: clamp(cohesionVal * 100),
   };
   const cw = componentWeights(p);
+  if (!opts.cohesion) cw.cohesion = 0;
   if (!lockedSlots.length) cw.locked = 0;
   const wsum = Object.values(cw).reduce((s, x) => s + x, 0);
   const wasted = abilities.filter((a) => a.wasted).length;
   const penalty = wasted * WASTED_PENALTY;
   const overall = clamp((Object.entries(components) as [keyof ComponentWeights, number][]).reduce((s, [k, v]) => s + v * cw[k], 0) / wsum - penalty);
 
-  const sumSrc = (k: StatKey) => avg((m) => m.stats[k].bySource.z.base + m.stats[k].bySource.assault.base + m.stats[k].bySource.zenkai.base);
+  const sumSrc = (k: StatKey) => mean((m) => m.stats[k].bySource.z.base + m.stats[k].bySource.assault.base + m.stats[k].bySource.zenkai.base);
   return {
     sheet, components, overall, penalty, abilities,
     metrics: {
-      health: hp, strike: avg((m) => m.offense.strike), blast: avg((m) => m.offense.blast),
-      strikeDef: avg((m) => m.stats.sd.final), blastDef: avg((m) => m.stats.bd.final),
+      health: mean((m) => m.stats.hp.final), strike: mean((m) => m.offense.strike), blast: mean((m) => m.offense.blast),
+      strikeDef: mean((m) => m.stats.sd.final), blastDef: mean((m) => m.stats.bd.final),
       zHealth: sumSrc('hp'), zStrike: sumSrc('sa'), zBlast: sumSrc('ba'), zStrikeDef: sumSrc('sd'), zBlastDef: sumSrc('bd'),
       zenkaiActive: abilities.filter((a) => a.source === 'zenkai' && !a.wasted).length,
-      tierDmg: avg((m) => m.tier?.dmg ?? 0), tierGuard: avg((m) => m.tier?.guard ?? 0),
+      tierDmg: mean((m) => m.tier?.dmg ?? 0), tierGuard: mean((m) => m.tier?.guard ?? 0),
       tiers: BATTLE.map((i) => (team.slots[i] ? db.tierOf(team.slots[i]!.charId) : null)),
       healthBuffs: abilities.filter((a) => a.givesHealth).length,
       wasted, equipActive, equipConditional, equipPieces, coverage: cov, sharedTags: shared,
+      abilityBonus: stacked.reduce((s, x) => s + x.total, 0), stacked, styles, grade: grade(overall),
     },
     uncalculated: collectUncalculated(team, db, sheet),
   };

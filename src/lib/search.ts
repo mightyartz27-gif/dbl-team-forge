@@ -10,8 +10,19 @@ export interface CharFilter {
   boxOnly: boolean;
   tag: number | null;
   tiers: Set<TierFilterKey>;
+  styles: Set<string>;     // battle style tag names: Melee Type, Ranged Type…
+  gives: Set<'hp' | 'dmg' | 'crit' | 'heal'>; // Z Abilities that give these
 }
-export const emptyFilter = (): CharFilter => ({ q: '', rarity: new Set(), colors: new Set(), zenkai: false, boxOnly: false, tag: null, tiers: new Set() });
+export const emptyFilter = (): CharFilter => ({ q: '', rarity: new Set(), colors: new Set(), zenkai: false, boxOnly: false, tag: null, tiers: new Set(), styles: new Set(), gives: new Set() });
+
+const GIVES: Record<string, (k: string) => boolean> = {
+  hp: (k) => k === 'hp', dmg: (k) => k.startsWith('dmg') && k !== 'dmgGuard' && k !== 'dmgCut', crit: (k) => k === 'crit' || k === 'critDmg', heal: (k) => k === 'heal',
+};
+/** Does any level of the character's Z or Zenkai Z Ability give this kind of stat? */
+export function givesStat(c: Character, g: string): boolean {
+  const test = GIVES[g];
+  return [...(c.z ?? []), ...(c.zenkaiZ ?? [])].some((l) => l?.lines.some((x) => x.stats.some((s) => test(s.stat))));
+}
 
 export function searchChars(db: Db, f: CharFilter, box: Set<number>): Character[] {
   const q = f.q.trim().toLowerCase();
@@ -27,6 +38,8 @@ export function searchChars(db: Db, f: CharFilter, box: Set<number>): Character[
     }
     if (f.tag !== null && !c.tags.includes(f.tag)) continue;
     if (f.tiers.size && !f.tiers.has(tierKey(db, c.id))) continue;
+    if (f.styles.size && !c.tags.some((t) => f.styles.has(db.tags.get(t)?.name ?? ''))) continue;
+    if (f.gives.size && ![...f.gives].every((g) => givesStat(c, g))) continue;
     let score = 1;
     if (q) {
       const name = c.name.toLowerCase();

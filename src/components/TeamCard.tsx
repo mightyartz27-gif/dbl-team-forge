@@ -28,19 +28,22 @@ export function TeamCard({ r, index }: { r: GeneratedTeam; index: number }) {
           <p className="text-sm text-mute">{p.blurb}</p>
         </div>
         <div className="text-right">
-          <div className="num text-3xl font-extrabold text-gi">{Math.round(r.evaluation.overall)}</div>
+          <div className="num text-3xl font-extrabold text-gi">{Math.round(r.evaluation.overall)} <span className="text-xl text-cream">{m.grade}</span></div>
           <div className="text-[11px] text-mute">optimizer score</div>
         </div>
       </header>
       <Formation team={r.team} coverage={m.coverage} size="lg" lockedIds={locked} />
       <p className="mt-2 text-sm text-mute">Leader: <span className="text-cream">{leader}</span></p>
       <div className="mt-3 grid grid-cols-3 gap-2">
+        <Metric label="Ability Bonus" value={`+${Math.round(m.abilityBonus)}%`} tone="var(--color-gi)" />
         <Metric label="Z coverage" value={`${Math.round(cov * 100)}%`} />
         <Metric label="Zenkai active" value={String(m.zenkaiActive)} />
         <Metric label="Health" value={fmtPct(m.health)} />
         <Metric label="Strike ATK" value={fmtPct(m.strike)} />
         <Metric label="Blast ATK" value={fmtPct(m.blast)} />
         <Metric label="DEF avg" value={fmtPct((m.strikeDef + m.blastDef) / 2)} />
+        <Metric label="Style" value={`${m.styles.strike}S/${m.styles.blast}B${m.styles.mixed ? `/${m.styles.mixed}M` : ''}`} />
+        <Metric label="Grade" value={m.grade} />
       </div>
       {r.team.ruleset === 'rating' && <p className="mt-3 text-sm text-mute">Rating Match tier bonus: <span className="text-cream">+{Math.round(m.tierDmg)}% damage, +{Math.round(m.tierGuard)}% guard</span> (fighter average)</p>}
       <p className="mt-3 text-sm text-mute">

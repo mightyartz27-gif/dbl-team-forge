@@ -7,10 +7,11 @@ import { PRIORITIES, attackType, type Priority } from '../engine/weights';
 import { TIERS, TIER_LABEL, tierKey, type TierFilterKey } from '../engine/pvp';
 import { TierBadge } from '../components/TierBadge';
 import { RARITY_CHIPS } from '../components/CharacterPicker';
+import { ScanOptions } from '../components/ScanOptions';
 import { useStore } from '../state/store';
 
 export function BuildPage() {
-  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool } = useStore();
+  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool, evalOpts, notAwakened } = useStore();
   const pvp = db.data.pvp;
   const rating = ruleset === 'rating' && !!pvp;
   const canRun = locked.length > 0 || rating;
@@ -33,7 +34,7 @@ export function BuildPage() {
   const generate = async () => {
     setError(null); setResults([]); setGenerating(true);
     try {
-      await runner.generate(locked, pool, archetypes(), (r) => setResults((prev) => [...prev, r]), rating ? { fighterPool, ruleset: 'rating', llBand } : { ruleset: 'standard' });
+      await runner.generate(locked, pool, archetypes(), (r) => setResults((prev) => [...prev, r]), rating ? { fighterPool, ruleset: 'rating', llBand, notAwakened, evalOpts } : { ruleset: 'standard', notAwakened, evalOpts });
     } catch (e) { setError((e as Error).message); }
     setGenerating(false);
   };
@@ -43,16 +44,38 @@ export function BuildPage() {
       <h1 className="font-display text-3xl font-extrabold">Build teams</h1>
       <p className="mb-4 text-mute">Locked characters always fight. Everything else — the other fighters, the bench, the Leader and equipment — is searched for you.</p>
 
-      {pvp && (
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-panel p-1" role="radiogroup" aria-label="Game mode">
-          {(['standard', 'rating'] as const).map((r) => (
-            <button key={r} role="radio" aria-checked={ruleset === r} onClick={() => { setRuleset(r); setResults([]); }}
-              className={`rounded-xl py-2.5 font-display text-lg font-bold ${ruleset === r ? 'bg-gi text-ink' : 'text-mute'}`}>
-              {r === 'standard' ? 'Standard' : 'Rating Match (PvP)'}
-            </button>
-          ))}
+
+
+      <Section title="Locked fighters" aside={<span className="num text-sm text-mute">{locked.length}/3</span>}>
+        <div className="flex gap-3">
+          {locked.map((id) => {
+            const c = db.char(id);
+            return (
+              <div key={id} className="flex w-24 flex-col items-center gap-1 text-center">
+                <CharAvatar c={c} size={64} />
+                <span className="line-clamp-2 text-[11px] leading-tight">{c.name}</span>
+                {rating && <TierBadge id={id} />}
+                {rating && !fighterPool.includes(id) && <span className="text-[10px] text-warn">outside your tiers, kept</span>}
+                <button className="text-xs text-gi" onClick={() => setLocked(locked.filter((x) => x !== id))}>Unlock</button>
+              </div>
+            );
+          })}
+          {locked.length < 3 && (
+            <button onClick={() => setPicking(true)} className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-line text-2xl text-mute hover:border-gi" aria-label="Lock a character">+</button>
+          )}
         </div>
-      )}
+      </Section>
+
+      <Section title="Optimize for">
+        <div className="flex flex-wrap gap-2">
+          {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setPriority(p.id)}>{p.label}</Chip>)}
+        </div>
+        <p className="mt-2 text-sm text-mute">{PRIORITIES.find((p) => p.id === priority)?.blurb} You'll also get balanced, Z Ability, Zenkai, Health, offense and tag-synergy variants to compare.</p>
+      </Section>
+
+      <Section title="Scan options">
+        <ScanOptions pvpChecked={ruleset === 'rating'} onPvp={(b) => { setRuleset(b ? 'rating' : 'standard'); setResults([]); }} showDepth />
+      </Section>
 
       {rating && pvp && (
         <Section title="Rating Match tiers">
@@ -85,38 +108,12 @@ export function BuildPage() {
         </Section>
       )}
 
-      <Section title="Locked fighters" aside={<span className="num text-sm text-mute">{locked.length}/3</span>}>
-        <div className="flex gap-3">
-          {locked.map((id) => {
-            const c = db.char(id);
-            return (
-              <div key={id} className="flex w-24 flex-col items-center gap-1 text-center">
-                <CharAvatar c={c} size={64} />
-                <span className="line-clamp-2 text-[11px] leading-tight">{c.name}</span>
-                {rating && <TierBadge id={id} />}
-                {rating && !fighterPool.includes(id) && <span className="text-[10px] text-warn">outside your tiers, kept</span>}
-                <button className="text-xs text-gi" onClick={() => setLocked(locked.filter((x) => x !== id))}>Unlock</button>
-              </div>
-            );
-          })}
-          {locked.length < 3 && (
-            <button onClick={() => setPicking(true)} className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-line text-2xl text-mute hover:border-gi" aria-label="Lock a character">+</button>
-          )}
-        </div>
-      </Section>
-
-      <Section title="Optimize for">
-        <div className="flex flex-wrap gap-2">
-          {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setPriority(p.id)}>{p.label}</Chip>)}
-        </div>
-        <p className="mt-2 text-sm text-mute">{PRIORITIES.find((p) => p.id === priority)?.blurb} You'll also get balanced, Z Ability, Zenkai, Health, offense and tag-synergy variants to compare.</p>
-      </Section>
-
       <label className="mb-5 flex items-center gap-3 rounded-xl bg-panel p-3">
         <input type="checkbox" checked={boxOnly} onChange={(e) => setBoxOnly(e.target.checked)} className="h-5 w-5 accent-[var(--color-gi)]" disabled={!box.size} />
         <span>
           <span className="font-semibold">Only characters I own</span>
           <span className="block text-sm text-mute">{box.size ? `${box.size} in your box` : 'Mark characters as owned on the Characters tab first.'}</span>
+          {notAwakened.length > 0 && <span className="block text-sm text-mute">{notAwakened.length} of them aren't Zenkai Awakened and are counted without Zenkai.</span>}
         </span>
       </label>
 

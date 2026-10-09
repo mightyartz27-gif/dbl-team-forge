@@ -2,6 +2,7 @@ import type { Team } from '../engine/zAbilities';
 import { useStore } from '../state/store';
 import { CharAvatar } from './CharAvatar';
 import { TierBadge } from './TierBadge';
+import { attackType } from '../engine/weights';
 
 /** 3 fighters above, 3 bench below — the core picture of a DBL team. */
 export function Formation({ team, onSlot, coverage, size = 'lg', lockedIds = [] }: { team: Team; onSlot?: (i: number) => void; coverage?: number[]; size?: 'lg' | 'sm'; lockedIds?: number[] }) {
@@ -16,6 +17,12 @@ export function Formation({ team, onSlot, coverage, size = 'lg', lockedIds = [] 
         {size === 'lg' && (
           <span className="line-clamp-2 w-full text-center text-[11px] leading-tight text-mute">
             {lockedIds.includes(c.id) && <span aria-label="Locked">🔒 </span>}{c.name}
+          </span>
+        )}
+        {size === 'lg' && i < 3 && (
+          <span className="num flex gap-1 text-[10px] font-bold uppercase tracking-wide">
+            <span className={attackType(c) === 'blast' ? 'text-el-blu' : attackType(c) === 'strike' ? 'text-gi' : 'text-mute'}>{attackType(c) === 'mixed' ? 'S/B' : attackType(c)}</span>
+            {c.tags.map((t) => db.tags.get(t)).filter((t) => t?.kind === 'style').map((t) => <span key={t!.id} className="text-mute">{t!.name.replace(' Type', '')}</span>)}
           </span>
         )}
         {team.ruleset === 'rating' && i < 3 && <TierBadge id={c.id} />}

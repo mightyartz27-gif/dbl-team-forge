@@ -25,6 +25,8 @@ export interface Team {
   ruleset?: 'standard' | 'rating';
   /** LEGENDS LIMITED star band for the Featured LL bonus (index into pvp.llBands) */
   llBand?: number;
+  /** characters the user owns but hasn't Zenkai Awakened (from My box) */
+  notAwakened?: number[];
 }
 
 export const BATTLE = [0, 1, 2] as const;
@@ -32,8 +34,8 @@ export const BENCH = [3, 4, 5] as const;
 export const isBattle = (i: number) => i < 3;
 export const trioOf = (i: number) => (i < 3 ? [0, 1, 2] : [3, 4, 5]);
 
-export function newMember(charId: number, c?: Character): Member {
-  return { charId, zLevel: 4, zenkai: !!c?.zenkai, equipment: [null, null, null] };
+export function newMember(charId: number, c?: Character, ctx?: { notAwakened?: number[] }): Member {
+  return { charId, zLevel: 4, zenkai: !!c?.zenkai && !ctx?.notAwakened?.includes(charId), equipment: [null, null, null] };
 }
 export function emptyTeam(): Team {
   return { slots: [null, null, null, null, null, null], leader: null };

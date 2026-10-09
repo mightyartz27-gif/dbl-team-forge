@@ -15,7 +15,8 @@ Unofficial fan project. Not affiliated with Bandai Namco. Character and equipmen
 - **What-if** — change anything and see before / after / difference instantly.
 - **Compare** — side-by-side table of all generated teams.
 - **Rating Match (PvP) mode** — the official tier list (Featured, Z, S, A, B, C) is imported automatically every day; tier bonuses are added to fighters' stats, fighters can be limited to chosen tiers (default Featured–B) and rarities, and teams can be suggested with no locked character.
-- **My box** — mark owned characters (or paste card codes) and generate from your box only.
+- **My box** — mark owned characters (or paste card codes), mark which are Zenkai Awakened, and generate from your box only.
+- **Analysis options** — defense coverage, carry ↔ balanced slider, style cohesion, PvP tier bonus and Quick/Thorough scan, shared by Build and Team; Ability Bonus with per-fighter stacked output, grade, history.
 - **Transparency** — the score is a configurable internal metric with its breakdown shown; effects that can't be quantified are listed as *Not calculated*, never guessed.
 
 ## Architecture

@@ -2,13 +2,13 @@ import type { StatKey } from '../data/types';
 import type { Db } from './db';
 import { withOptimizedEquipment } from './equipOptimizer';
 import { evaluateTeam, synergyScore, SYNERGY_TAG_KINDS, type TeamEval } from './scoring';
-import { attackType, sourceWeights, statWeights, type AttackType, type Priority } from './weights';
+import { attackType, DEFAULT_EVAL, sourceWeights, statWeights, type AttackType, type EvalOptions, type Priority } from './weights';
 import { tierBonusFor } from './pvp';
 import { abilitiesOf, matches, newMember, type Team, type ZSource } from './zAbilities';
 
 interface PreLine { source: ZSource; cond: number[][] | null; v: Record<AttackType, number> }
 interface Pre { id: number; type: AttackType; tags: Set<number>; synTags: number[]; lines: PreLine[]; uncond: Record<AttackType, number>; uncondZ: Record<AttackType, number>; assault: Record<AttackType, number>; tierV: number }
-export interface RulesetOptions { ruleset?: 'standard' | 'rating'; llBand?: number }
+export interface RulesetOptions { ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; coverage?: EvalOptions['coverage'] }
 
 const TYPES: AttackType[] = ['strike', 'blast', 'mixed'];
 
@@ -18,10 +18,10 @@ export class SearchContext {
   private rCache = new Map<number, number>();
   constructor(readonly db: Db, readonly p: Priority, pool: number[], readonly rules: RulesetOptions = {}) {
     const sw = sourceWeights(p);
-    const W = Object.fromEntries(TYPES.map((t) => [t, statWeights(p, t)])) as Record<AttackType, Partial<Record<StatKey, number>>>;
+    const W = Object.fromEntries(TYPES.map((t) => [t, statWeights(p, t, rules.coverage)])) as Record<AttackType, Partial<Record<StatKey, number>>>;
     for (const id of pool) {
       const c = db.char(id);
-      const m = newMember(id, c);
+      const m = newMember(id, c, rules);
       const lines: PreLine[] = [];
       const uncond = { strike: 0, blast: 0, mixed: 0 }, uncondZ = { strike: 0, blast: 0, mixed: 0 }, assault = { strike: 0, blast: 0, mixed: 0 };
       for (const ab of abilitiesOf(m, db)) {
@@ -83,6 +83,8 @@ export interface GenerateOptions {
   fighterPool?: number[];      // allowed fighters (e.g. PvP tier filter); defaults to pool
   ruleset?: 'standard' | 'rating';
   llBand?: number;
+  notAwakened?: number[];      // owned but not Zenkai Awakened (My box)
+  evalOpts?: EvalOptions;
   pool: number[];              // allowed character ids (whole db or the user's box)
   priorities: Priority[];
   perPriority?: number;        // shortlist size to fully evaluate
@@ -109,7 +111,7 @@ function combos(arr: number[], k: number): number[][] {
 }
 
 /** Fast search: best (trio, leader, bench) candidates under one priority. */
-export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number, fighterPool?: number[]): Candidate[] {
+export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number, fighterPool?: number[], depth: 'quick' | 'thorough' = 'quick'): Candidate[] {
   const sw = sourceWeights(ctx.p);
   const need = 3 - locked.length;
   const free = pool.filter((id) => !locked.includes(id) && !lockedBench.includes(id));
@@ -118,7 +120,8 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
   let trios: number[][];
   if (need <= 0) trios = [locked.slice(0, 3)];
   else {
-    const K = need === 1 ? 90 : need === 2 ? 42 : 22;
+    const deep = depth === 'thorough';
+    const K = need === 1 ? (deep ? 160 : 90) : need === 2 ? (deep ? 64 : 42) : deep ? 30 : 22;
     const affinity = (c: number) => {
       let s = ctx.R(c, c) * 0.6 + ctx.pre.get(c)!.assault.mixed * locked.length;
       for (const l of locked) s += ctx.R(c, l) + ctx.R(l, c);
@@ -195,9 +198,9 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
 }
 
 export function buildTeam(c: Candidate, db: Db, rules: RulesetOptions = {}): Team {
-  const slots = [...c.trio, ...c.bench].map((id) => (id !== undefined ? newMember(id, db.char(id)) : null));
+  const slots = [...c.trio, ...c.bench].map((id) => (id !== undefined ? newMember(id, db.char(id), rules) : null));
   while (slots.length < 6) slots.push(null);
-  return { slots, leader: c.trio.indexOf(c.leader), ruleset: rules.ruleset ?? 'standard', llBand: rules.llBand ?? 1 };
+  return { slots, leader: c.trio.indexOf(c.leader), ruleset: rules.ruleset ?? 'standard', llBand: rules.llBand ?? 1, notAwakened: rules.notAwakened };
 }
 
 export const teamKey = (t: Team) => t.slots.map((m) => m?.charId ?? '-').join(',') + '@' + t.leader;
@@ -209,12 +212,13 @@ export function generateTeams(db: Db, o: GenerateOptions): GeneratedTeam[] {
   const usedSix = new Set<string>();
   for (const p of o.priorities) {
     o.onProgress?.(`Searching ${p}…`);
-    const rules = { ruleset: o.ruleset, llBand: o.llBand };
+    const opts = o.evalOpts ?? DEFAULT_EVAL;
+    const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage };
     const ctx = new SearchContext(db, p, pool, rules);
-    const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, o.perPriority ?? 6, o.fighterPool);
+    const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, o.perPriority ?? (opts.depth === 'thorough' ? 12 : 6), o.fighterPool, opts.depth);
     const evaluated = cands.map((c, i) => {
-      const team = withOptimizedEquipment(buildTeam(c, db, rules), db, p, o.allowedEquipment);
-      return { priority: p, team, evaluation: evaluateTeam(team, db, p, o.locked), candidateRank: i };
+      const team = withOptimizedEquipment(buildTeam(c, db, rules), db, p, o.allowedEquipment, opts.coverage);
+      return { priority: p, team, evaluation: evaluateTeam(team, db, p, o.locked, opts), candidateRank: i };
     }).sort((a, b) => b.evaluation.overall - a.evaluation.overall);
     const pick = evaluated.find((e) => !used.has(teamKey(e.team)) && !usedSix.has(sixKey(e.team))) ?? evaluated.find((e) => !used.has(teamKey(e.team)));
     if (pick) { used.add(teamKey(pick.team)); usedSix.add(sixKey(pick.team)); out.push(pick); o.onResult?.(pick); }

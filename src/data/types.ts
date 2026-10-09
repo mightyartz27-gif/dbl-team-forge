@@ -33,6 +33,8 @@ export interface Character {
   zenkaiZ: (ZLevel | null)[] | null;
   assault: (ZLevel | null)[] | null;
   traits: { name: string; text: string }[];
+  /** mentions of Strike vs Blast boosts in the main + unique abilities */
+  kitBias?: { s: number; b: number };
   resonance: { name: string; text: string } | null;
   warnings: string[];
 }

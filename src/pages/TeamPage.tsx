@@ -3,7 +3,9 @@ import { prettyAbility } from '../lib/text';
 import { benchRanking, diagnose, explain, leaderComparison, suggestSwaps, type Swap } from '../engine/analysis';
 import { conditionText } from '../engine/equipment';
 import { withOptimizedEquipment } from '../engine/equipOptimizer';
-import { evaluateTeam, type TeamEval } from '../engine/scoring';
+import { evaluateTeam, STACK_STATS, type TeamEval } from '../engine/scoring';
+import { STAT_LABEL } from '../engine/stats';
+import { ScanOptions } from '../components/ScanOptions';
 import { componentWeights, PRIORITIES, type Priority } from '../engine/weights';
 import { emptyTeam, newMember, type EquipChoice, type Team } from '../engine/zAbilities';
 import { CharAvatar } from '../components/CharAvatar';
@@ -21,18 +23,19 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 const COMPONENT_LABEL: Record<string, string> = {
   battleSynergy: 'Battle synergy (shared tags)', zEfficiency: 'Z Ability efficiency', zenkaiEfficiency: 'Zenkai efficiency', healthSupport: 'Health support',
-  offense: 'Offense', defense: 'Defense', equipment: 'Equipment', coverage: 'Z coverage', leaderEfficiency: 'Leader efficiency', locked: 'Locked characters',
+  offense: 'Offense', defense: 'Defense', equipment: 'Equipment', coverage: 'Z coverage', leaderEfficiency: 'Leader efficiency', locked: 'Locked characters', cohesion: 'Style cohesion',
 };
 
 export function TeamPage() {
-  const { db, current, setCurrent, results, pool, llBand } = useStore();
+  const { db, current, setCurrent, results, pool, llBand, evalOpts, notAwakened, history, pushHistory, clearHistory } = useStore();
+  const [sheet, setSheet] = useState<'options' | 'history' | null>(null);
   const { team, priority, locked, baseline } = current;
   const [tab, setTab] = useState<TabId>('summary');
   const [picking, setPicking] = useState<number | null>(null);
   const [slotMenu, setSlotMenu] = useState<number | null>(null);
 
-  const ev = useMemo(() => evaluateTeam(team, db, priority, locked), [team, db, priority, locked]);
-  const baseEv = useMemo(() => (baseline ? evaluateTeam(baseline, db, priority, locked) : null), [baseline, db, priority, locked]);
+  const ev = useMemo(() => evaluateTeam(team, db, priority, locked, evalOpts), [team, db, priority, locked, evalOpts]);
+  const baseEv = useMemo(() => (baseline ? evaluateTeam(baseline, db, priority, locked, evalOpts) : null), [baseline, db, priority, locked, evalOpts]);
   const others = useMemo(() => results.map((r) => r.evaluation), [results]);
   const exp = useMemo(() => explain(ev, team, db, others.length ? others : [ev], locked), [ev, team, db, others, locked]);
   const setTeam = (t: Team) => setCurrent((c) => ({ ...c, team: t }));
@@ -40,10 +43,10 @@ export function TeamPage() {
   const filled = team.slots.filter(Boolean).length;
 
   const putChar = (slot: number, id: number) => {
-    const slots = team.slots.map((m, i) => (i === slot ? newMember(id, db.char(id)) : m));
+    const slots = team.slots.map((m, i) => (i === slot ? newMember(id, db.char(id), { notAwakened }) : m));
     let leader = team.leader;
     if (leader === null && slot < 3) leader = slot;
-    setTeam({ slots, leader });
+    setTeam({ ...team, slots, leader, notAwakened });
   };
 
   return (
@@ -60,17 +63,31 @@ export function TeamPage() {
           </div>
         </div>
         <Formation team={team} coverage={ev.metrics.coverage} onSlot={(i) => (team.slots[i] ? setSlotMenu(i) : setPicking(i))} lockedIds={locked} />
+        {filled > 0 && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            <div className="col-span-2 rounded-xl bg-panel px-3 py-2">
+              <div className="text-[11px] text-mute">Ability Bonus (fighters)</div>
+              <div className="num text-2xl font-extrabold leading-7 text-gi">+{Math.round(ev.metrics.abilityBonus)}%</div>
+            </div>
+            <div className="rounded-xl bg-panel px-3 py-2">
+              <div className="text-[11px] text-mute">Grade</div>
+              <div className="num text-2xl font-extrabold leading-7">{ev.metrics.grade}</div>
+            </div>
+            <div className="rounded-xl bg-panel px-3 py-2">
+              <div className="text-[11px] text-mute">Style</div>
+              <div className="num text-lg font-bold leading-7">{ev.metrics.styles.strike}S / {ev.metrics.styles.blast}B{ev.metrics.styles.mixed ? ` / ${ev.metrics.styles.mixed}M` : ''}</div>
+            </div>
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button small kind="ghost" onClick={() => setSheet('options')}>Options</Button>
+          <Button small kind="ghost" onClick={() => setSheet('history')}>History ({history.length})</Button>
+          {filled > 0 && <Button small kind="ghost" onClick={() => pushHistory({ label: current.label, priority, team, locked })}>Save to history</Button>}
+          {filled > 0 && <Button small kind="quiet" onClick={() => { pushHistory({ label: current.label, priority, team, locked }); setCurrent({ team: { ...emptyTeam(), ruleset: team.ruleset, llBand: team.llBand }, priority, locked: [], baseline: null, label: 'My team' }); }}>Clear party</Button>}
+          {team.ruleset === 'rating' && <span className="rounded-md bg-gi px-2 py-0.5 text-xs font-bold text-ink">PvP tier bonus on</span>}
+        </div>
       </div>
 
-      {db.data.pvp && (
-        <div className="mt-3 flex gap-2">
-          {(['standard', 'rating'] as const).map((r) => (
-            <Chip key={r} active={(team.ruleset ?? 'standard') === r} onClick={() => setTeam({ ...team, ruleset: r, llBand: team.llBand ?? llBand })}>
-              {r === 'standard' ? 'Standard' : 'Rating Match tiers'}
-            </Chip>
-          ))}
-        </div>
-      )}
       <div className="mt-3 scroll-x -mx-4 flex gap-2 px-4">
         {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setCurrent((c) => ({ ...c, priority: p.id }))}>{p.label}</Chip>)}
       </div>
@@ -96,11 +113,29 @@ export function TeamPage() {
           {tab === 'improve' && <ImprovePanel team={team} ev={ev} priority={priority} pool={pool} locked={locked} setTeam={setTeam} baseEv={baseEv} />}
           <div className="mt-6 flex flex-wrap gap-2">
             <Button kind="ghost" small onClick={() => setCurrent((c) => ({ ...c, baseline: c.team }))}>Set current as what-if start</Button>
-            <Button kind="ghost" small onClick={() => setCurrent({ team: emptyTeam(), priority, locked: [], baseline: null, label: 'My team' })}>Clear team</Button>
           </div>
         </>
       )}
 
+      <Sheet open={sheet === 'options'} onClose={() => setSheet(null)} title="Analysis options">
+        <ScanOptions pvpChecked={team.ruleset === 'rating'} onPvp={(b) => setTeam({ ...team, ruleset: b ? 'rating' : 'standard', llBand: team.llBand ?? llBand })} />
+        <p className="mt-3 text-xs text-mute">These options are shared with Build, so new searches use them too.</p>
+      </Sheet>
+      <Sheet open={sheet === 'history'} onClose={() => setSheet(null)} title="History">
+        {history.length ? (
+          <ul className="grid gap-2">
+            {history.map((h) => (
+              <li key={h.at}>
+                <button className="w-full rounded-xl bg-panel p-3 text-left hover:bg-panel-2" onClick={() => { setCurrent({ team: h.team, priority: h.priority, locked: h.locked, baseline: h.team, label: h.label }); setSheet(null); }}>
+                  <div className="flex items-center justify-between gap-2"><span className="font-semibold">{h.label}</span><span className="num text-xs text-mute">{new Date(h.at).toLocaleString()}</span></div>
+                  <div className="mt-2"><Formation team={h.team} size="sm" /></div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-mute">Teams you open, save or clear appear here.</p>}
+        {history.length > 0 && <div className="mt-3"><Button small kind="quiet" onClick={clearHistory}>Clear history</Button></div>}
+      </Sheet>
       <CharacterPicker open={picking !== null} onClose={() => setPicking(null)} exclude={inTeam}
         title={picking !== null ? (picking < 3 ? `Fighter ${picking + 1}` : `Bench ${picking - 2}`) : ''} onPick={(id) => picking !== null && putChar(picking, id)} />
       <Sheet open={slotMenu !== null} onClose={() => setSlotMenu(null)} title={slotMenu !== null && team.slots[slotMenu] ? db.char(team.slots[slotMenu]!.charId).name : ''}>
@@ -135,11 +170,43 @@ export function TeamPage() {
 }
 
 // ------------------------------------------------------------------ summary
+function StackedOutput({ ev, team }: { ev: TeamEval; team: Team }) {
+  const { db } = useStore();
+  const styleLabel = { strike: 'Strike', blast: 'Blast', mixed: 'Mixed' } as const;
+  return (
+    <Section title="Ability Bonus: stacked output" aside={<span className="num text-lg font-bold text-gi">+{Math.round(ev.metrics.abilityBonus)}%</span>}>
+      <p className="mb-2 text-sm text-mute">Everything each fighter receives, summed across Z Abilities, Zenkai, Assault, equipment{team.ruleset === 'rating' ? ' and PvP tier' : ''}.</p>
+      <div className="grid gap-2 md:grid-cols-3">
+        {ev.metrics.stacked.map((s) => (
+          <div key={s.slot} className="rounded-xl bg-panel p-3">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-semibold">{db.char(team.slots[s.slot]!.charId).name}{team.leader === s.slot ? ' ★' : ''}</div>
+                <div className="text-xs text-mute">{styleLabel[s.style]} lean, cohesion {Math.round(s.cohesion * 100)}%</div>
+              </div>
+              <div className="text-right"><div className="text-[10px] text-mute">TOTAL</div><div className="num text-lg font-extrabold">+{Math.round(s.total)}%</div></div>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-sm">
+              {STACK_STATS.map((k) => (
+                <div key={k} className="flex justify-between gap-2 border-t border-line py-0.5">
+                  <dt className="truncate text-mute">{k === 'dmg' ? 'Damage' : STAT_LABEL[k]}</dt>
+                  <dd className="num font-semibold">{s.stats[k] ? `+${Math.round(s.stats[k])}%` : '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 function Summary({ ev, baseEv, exp, priority, team }: { ev: TeamEval; baseEv: TeamEval | null; exp: { why: string[]; sacrifices: string[] }; priority: Priority; team: Team }) {
   const { db } = useStore();
   const cw = componentWeights(priority);
   return (
     <>
+      <StackedOutput ev={ev} team={team} />
       {baseEv && baseEv !== ev && <WhatIf before={baseEv} after={ev} />}
       <Section title="Why this team">
         <p className="mb-2 text-sm text-mute">This team scored {Math.round(ev.overall)} on the {PRIORITIES.find((p) => p.id === priority)?.label} criteria. Here is what drives it.</p>
@@ -270,7 +337,7 @@ function BenchPanel({ team, priority, pool, onSwap }: { team: Team; priority: Pr
 
 // ------------------------------------------------------------------ equipment
 function EquipmentPanel({ team, ev, priority, setTeam }: { team: Team; ev: TeamEval; priority: Priority; setTeam: (t: Team) => void }) {
-  const { db, openEquip } = useStore();
+  const { db, openEquip, evalOpts } = useStore();
   const [pick, setPick] = useState<{ slot: number; piece: number } | null>(null);
   const [q, setQ] = useState('');
   const setChoice = (slot: number, piece: number, choice: EquipChoice | null) =>
@@ -279,7 +346,7 @@ function EquipmentPanel({ team, ev, priority, setTeam }: { team: Team; ev: TeamE
     <>
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-sm text-mute">{ev.metrics.equipActive}/{ev.metrics.equipConditional} conditions active. Values assume max rolls unless you enter yours.</p>
-        <Button small onClick={() => setTeam(withOptimizedEquipment(team, db, priority))}>Optimize all</Button>
+        <Button small onClick={() => setTeam(withOptimizedEquipment(team, db, priority, undefined, evalOpts.coverage))}>Optimize all</Button>
       </div>
       {[0, 1, 2].filter((i) => team.slots[i]).map((slot) => {
         const m = team.slots[slot]!;
@@ -375,8 +442,8 @@ function EquipmentPanel({ team, ev, priority, setTeam }: { team: Team; ev: TeamE
 
 // ------------------------------------------------------------------ leader
 function LeaderPanel({ team, priority, locked, setTeam }: { team: Team; priority: Priority; locked: number[]; setTeam: (t: Team) => void }) {
-  const { db } = useStore();
-  const opts = useMemo(() => leaderComparison(team, db, priority, locked), [team, db, priority, locked]);
+  const { db, evalOpts } = useStore();
+  const opts = useMemo(() => leaderComparison(team, db, priority, locked, evalOpts), [team, db, priority, locked, evalOpts]);
   if (!opts.length) return <p className="text-mute">Add fighters to compare Leaders.</p>;
   return (
     <>
@@ -413,11 +480,11 @@ function LeaderPanel({ team, priority, locked, setTeam }: { team: Team; priority
 
 // ------------------------------------------------------------------ improve
 function ImprovePanel({ team, ev, priority, pool, locked, setTeam, baseEv }: { team: Team; ev: TeamEval; priority: Priority; pool: number[]; locked: number[]; setTeam: (t: Team) => void; baseEv: TeamEval | null }) {
-  const { db, setCurrent, fighterPool } = useStore();
+  const { db, setCurrent, fighterPool, evalOpts } = useStore();
   const problems = useMemo(() => diagnose(team, ev, db), [team, ev, db]);
   const [swaps, setSwaps] = useState<Swap[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const run = () => { setBusy(true); setTimeout(() => { setSwaps(suggestSwaps(team, db, priority, pool, locked, 4, team.ruleset === 'rating' ? fighterPool : undefined)); setBusy(false); }, 20); };
+  const run = () => { setBusy(true); setTimeout(() => { setSwaps(suggestSwaps(team, db, priority, pool, locked, 4, team.ruleset === 'rating' ? fighterPool : undefined, evalOpts)); setBusy(false); }, 20); };
   return (
     <>
       {baseEv && <WhatIf before={baseEv} after={ev} />}

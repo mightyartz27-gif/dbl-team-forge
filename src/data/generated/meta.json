@@ -1,18 +1,18 @@
 {
   "source": "dblegends.net (community database)",
-  "fetchedAt": "2026-10-08T12:33:24.470Z",
-  "builtAt": "2026-10-08T12:33:25.308Z",
+  "fetchedAt": "2026-09-25T19:54:55.827Z",
+  "builtAt": "2026-10-09T13:42:58.149Z",
   "counts": {
-    "characters": 713,
-    "equipment": 931,
-    "battleEquipment": 905,
-    "tags": 517
+    "characters": 711,
+    "equipment": 926,
+    "battleEquipment": 900,
+    "tags": 518
   },
   "parse": {
-    "zAbilityLevels": 3960,
-    "zAbilityLevelsFullyParsed": 3949,
+    "zAbilityLevels": 3948,
+    "zAbilityLevelsFullyParsed": 3937,
     "characterWarnings": 5,
-    "equipLinesParsed": 3841,
-    "equipLinesContextual": 445
+    "equipLinesParsed": 3821,
+    "equipLinesContextual": 439
   }
 }

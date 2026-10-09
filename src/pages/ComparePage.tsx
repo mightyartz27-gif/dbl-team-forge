@@ -10,6 +10,7 @@ export function ComparePage() {
   );
   const rows: [string, (i: number) => number, 'pct' | 'int' | 'frac', boolean][] = [
     ['Optimizer score', (i) => results[i].evaluation.overall, 'int', true],
+    ['Ability Bonus', (i) => results[i].evaluation.metrics.abilityBonus, 'pct', true],
     ['Health', (i) => results[i].evaluation.metrics.health, 'pct', true],
     ['Strike ATK', (i) => results[i].evaluation.metrics.strike, 'pct', true],
     ['Blast ATK', (i) => results[i].evaluation.metrics.blast, 'pct', true],

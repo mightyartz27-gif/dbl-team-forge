@@ -3,7 +3,7 @@ import type { GameData } from '../data/types';
 import { Db } from '../engine/db';
 import type { GeneratedTeam } from '../engine/generator';
 import { Runner } from '../engine/runner';
-import { PRIORITIES, type Priority } from '../engine/weights';
+import { DEFAULT_EVAL, PRIORITIES, type EvalOptions, type Priority } from '../engine/weights';
 import { emptyTeam, type Team } from '../engine/zAbilities';
 import { DEFAULT_TIER_FILTER, tierKey, type TierFilterKey } from '../engine/pvp';
 
@@ -18,6 +18,8 @@ export interface CurrentTeam {
   label: string;
 }
 
+export interface HistoryEntry { at: string; label: string; priority: Priority; team: Team; locked: number[] }
+
 interface Store {
   db: Db;
   origin: 'bundled' | 'supabase';
@@ -30,6 +32,19 @@ interface Store {
   setBox: (ids: number[]) => void;
   boxOnly: boolean;
   setBoxOnly: (b: boolean) => void;
+  /** box characters marked as Zenkai Awakened */
+  boxZenkai: Set<number>;
+  toggleBoxZenkai: (id: number) => void;
+  setBoxZenkai: (ids: number[]) => void;
+  /** owned Zenkai-capable characters that are NOT awakened: counted without Zenkai */
+  notAwakened: number[];
+  // analysis options (shared by Build and Team)
+  evalOpts: EvalOptions;
+  setEvalOpts: (o: Partial<EvalOptions>) => void;
+  // history
+  history: HistoryEntry[];
+  pushHistory: (e: Omit<HistoryEntry, 'at'>) => void;
+  clearHistory: () => void;
   pool: number[];
   // Rating Match (PvP)
   ruleset: 'standard' | 'rating';
@@ -102,6 +117,19 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
   const setBox = useCallback((ids: number[]) => { const n = new Set(ids); write('dbl.box', ids); setBoxState(n); }, []);
   const [boxOnly, setBoxOnlyState] = useState<boolean>(() => read('dbl.boxOnly', false));
   const setBoxOnly = (b: boolean) => { write('dbl.boxOnly', b); setBoxOnlyState(b); };
+  const [boxZenkai, setBoxZenkaiState] = useState<Set<number>>(() => new Set(read<number[]>('dbl.boxZenkai', [])));
+  const toggleBoxZenkai = useCallback((id: number) => setBoxZenkaiState((b) => { const n = new Set(b); n.has(id) ? n.delete(id) : n.add(id); write('dbl.boxZenkai', [...n]); return n; }), []);
+  const setBoxZenkai = useCallback((ids: number[]) => { write('dbl.boxZenkai', ids); setBoxZenkaiState(new Set(ids)); }, []);
+  const notAwakened = useMemo(() => [...box].filter((id) => db.chars.get(id)?.zenkai && !boxZenkai.has(id)), [box, boxZenkai, db]);
+  const [evalOpts, setEvalOptsState] = useState<EvalOptions>(() => ({ ...DEFAULT_EVAL, ...read<Partial<EvalOptions>>('dbl.evalOpts', {}) }));
+  const setEvalOpts = useCallback((o: Partial<EvalOptions>) => setEvalOptsState((cur) => { const n = { ...cur, ...o }; write('dbl.evalOpts', n); return n; }), []);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => read<HistoryEntry[]>('dbl.history', []).filter((h) => h.team.slots.every((m) => !m || db.chars.has(m.charId))));
+  const pushHistory = useCallback((e: Omit<HistoryEntry, 'at'>) => setHistory((h) => {
+    const key = (t: Team) => t.slots.map((m) => m?.charId ?? '-').join(',') + t.leader;
+    const n = [{ ...e, at: new Date().toISOString() }, ...h.filter((x) => key(x.team) !== key(e.team))].slice(0, 20);
+    write('dbl.history', n); return n;
+  }), []);
+  const clearHistory = useCallback(() => { write('dbl.history', []); setHistory([]); }, []);
   const pool = useMemo(() => (boxOnly && box.size ? [...box] : data.characters.map((c) => c.id)), [boxOnly, box, data]);
 
   const [ruleset, setRulesetState] = useState<'standard' | 'rating'>(() => (data.pvp ? read('dbl.ruleset', 'standard') : 'standard'));
@@ -138,15 +166,17 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
     setCurrentState((prev) => { const n = typeof c === 'function' ? c(prev) : c; write('dbl.current', n); return n; });
   }, []);
   const openTeam = useCallback((r: GeneratedTeam) => {
+    pushHistory({ label: `${PRIORITIES.find((p) => p.id === r.priority)?.label ?? 'Generated'} team`, priority: r.priority, team: r.team, locked });
     setCurrent({ team: r.team, priority: r.priority, locked, baseline: r.team, label: `${PRIORITIES.find((p) => p.id === r.priority)?.label ?? 'Generated'} team` });
     go('team');
-  }, [locked, go, setCurrent]);
+  }, [locked, go, setCurrent, pushHistory]);
 
   const [charSheet, openChar] = useState<number | null>(null);
   const [equipSheet, openEquip] = useState<number | null>(null);
 
   const value: Store = {
     db, origin, runner: runnerRef.current, page, go, box, toggleBox, setBox, boxOnly, setBoxOnly, pool,
+    boxZenkai, toggleBoxZenkai, setBoxZenkai, notAwakened, evalOpts, setEvalOpts, history, pushHistory, clearHistory,
     ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool,
     locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating,
     current, setCurrent, openTeam, charSheet, openChar, equipSheet, openEquip,

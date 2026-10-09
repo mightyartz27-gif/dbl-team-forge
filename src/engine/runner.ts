@@ -1,7 +1,7 @@
 import type { GameData } from '../data/types';
 import type { Db } from './db';
 import { generateTeams, type GeneratedTeam } from './generator';
-import type { Priority } from './weights';
+import type { EvalOptions, Priority } from './weights';
 import type { WorkerIn, WorkerOut } from './worker';
 import GenWorker from './worker?worker&inline';
 
@@ -21,7 +21,7 @@ export class Runner {
       } catch { resolve(false); }
     });
   }
-  async generate(locked: number[], pool: number[], priorities: Priority[], onResult: (r: GeneratedTeam) => void, extra: { lockedBench?: number[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number } = {}): Promise<void> {
+  async generate(locked: number[], pool: number[], priorities: Priority[], onResult: (r: GeneratedTeam) => void, extra: { lockedBench?: number[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; evalOpts?: EvalOptions } = {}): Promise<void> {
     const lockedBench = extra.lockedBench ?? [];
     const useWorker = await this.ready;
     if (!useWorker || !this.worker) {
@@ -29,7 +29,7 @@ export class Runner {
       const done = new Set<string>();
       for (const p of priorities) {
         await new Promise((r) => setTimeout(r, 16));
-        const res = generateTeams(this.db, { locked, lockedBench, pool, priorities: [p], fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand });
+        const res = generateTeams(this.db, { locked, lockedBench, pool, priorities: [p], fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand, notAwakened: extra.notAwakened, evalOpts: extra.evalOpts });
         for (const r of res) {
           const k = r.team.slots.map((m) => m?.charId).join(',');
           if (!done.has(k)) { done.add(k); onResult(r); }
@@ -48,7 +48,7 @@ export class Runner {
         if (m.type === 'error') { w.removeEventListener('message', handler); reject(new Error(m.message)); }
       };
       w.addEventListener('message', handler);
-      w.postMessage({ type: 'generate', id, locked, lockedBench, pool, priorities, fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand } satisfies WorkerIn);
+      w.postMessage({ type: 'generate', id, locked, lockedBench, pool, priorities, fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand, notAwakened: extra.notAwakened, evalOpts: extra.evalOpts } satisfies WorkerIn);
     });
   }
 }

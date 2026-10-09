@@ -30,7 +30,7 @@ function AbilityBlock({ title, levels }: { title: string; levels: (ZLevel | null
 }
 
 export function CharacterSheet() {
-  const { charSheet, openChar, db, box, toggleBox, setLocked, locked, go, setCurrent, current } = useStore();
+  const { charSheet, openChar, db, box, toggleBox, setLocked, locked, go, setCurrent, current, boxZenkai, toggleBoxZenkai, notAwakened } = useStore();
   const c = charSheet !== null ? db.chars.get(charSheet) : null;
   const byKind = new Map<string, string[]>();
   c?.tags.forEach((t) => { const tg = db.tags.get(t); if (!tg || tg.kind === 'card') return; const k = KIND_LABEL[tg.kind]; byKind.set(k, [...(byKind.get(k) ?? []), tg.name]); });
@@ -38,7 +38,7 @@ export function CharacterSheet() {
     if (!c) return;
     const slot = current.team.slots.findIndex((m) => !m);
     if (slot < 0) return;
-    setCurrent((cur) => ({ ...cur, team: { slots: cur.team.slots.map((m, i) => (i === slot ? newMember(c.id, c) : m)), leader: cur.team.leader ?? (slot < 3 ? slot : null) } }));
+    setCurrent((cur) => ({ ...cur, team: { ...cur.team, notAwakened, slots: cur.team.slots.map((m, i) => (i === slot ? newMember(c.id, c, { notAwakened }) : m)), leader: cur.team.leader ?? (slot < 3 ? slot : null) } }));
     openChar(null); go('team');
   };
   return (
@@ -70,6 +70,12 @@ export function CharacterSheet() {
             <Button kind="ghost" onClick={addToTeam}>Add to my team</Button>
             <Button kind="ghost" onClick={() => toggleBox(c.id)}>{box.has(c.id) ? '✓ In my box' : 'Add to my box'}</Button>
           </div>
+          {c.zenkai && box.has(c.id) && (
+            <label className="mb-4 flex items-center gap-3 rounded-xl bg-panel p-3">
+              <input type="checkbox" checked={boxZenkai.has(c.id)} onChange={() => toggleBoxZenkai(c.id)} className="h-5 w-5 accent-[var(--color-gi)]" />
+              <span><span className="block font-semibold">I've Zenkai Awakened this character</span><span className="block text-sm text-mute">Unchecked: teams count it without its Zenkai Z Ability{db.data.pvp ? ' and with the bigger pre-Zenkai PvP tier bonus' : ''}.</span></span>
+            </label>
+          )}
           {[...byKind].map(([k, names]) => (
             <div key={k} className="mb-2 text-sm"><span className="text-mute">{k}: </span>{names.join(', ')}</div>
           ))}

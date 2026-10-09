@@ -349,13 +349,17 @@ async function main() {
     const assault = parseLevels(cab.llz, 'assault');
     const traits = Object.entries(b.tr || {}).filter(([k]) => +k >= 8000000).map(([, v]) => ({ name: decode(v[0]), text: decode(v[1] || '') }));
     const resonance = Object.values(ab).find((a) => /resonance/i.test(a[0] || ''));
+    // Kit lean: how often the main + unique abilities boost Strike vs Blast (used when base stats are balanced)
+    const kitIds = [cab.m, ...((cab.u || []).map((x) => (Array.isArray(x) ? x[2] : x)))].filter((x) => x != null && x !== -1);
+    const kitText = kitIds.map((i) => (ab[String(i)] || ['', ''])[1]).join(' ');
+    const kitBias = { s: (kitText.match(/Strike (?:Arts|damage|Attack)/g) || []).length, b: (kitText.match(/Blast (?:Arts|damage|Attack)/g) || []).length };
     const colors = [L.color, L.color2].filter(Boolean);
     characters.push({
       id: +id, card: L.card, name: L.name, forms: L.forms ? [L.forms] : [], rarity: L.rarity, lf: L.lf,
       color: L.color, colors, tags: [...new Set([...L.tags, ...Object.keys(b.tr || {}).map(Number).filter((n) => n < 8000000)])],
       zenkai: L.zenkai && !!zenkai, icon: c.img || null,
       base: c.max ? { hp: c.max.hp, sa: c.max.sa, ba: c.max.ba, sd: c.max.sd, bd: c.max.bd } : null,
-      z, zenkaiZ: zenkai, assault, traits,
+      z, zenkaiZ: zenkai, assault, traits, kitBias,
       resonance: resonance ? { name: resonance[0], text: resonance[1].replace(/\r/g, '') } : null,
       warnings,
     });

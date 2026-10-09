@@ -35,6 +35,16 @@ Mechanics follow the rules documented by DBL Optimizer's public guides (Z Abilit
 ## Not calculated (listed separately)
 Power Resonance (triggers at battle start), battle traits (counters, cover changes…), card-draw and Arts-cost effects, and any ability text the parser couldn't read with confidence (0.3% of Z Ability levels in the Sept 2026 database).
 
+## Analysis options (Build and Team share them)
+- **Defense coverage** (Both / Strike / Blast): which DEF the weights and the defense component value. Effective defense combines DEF with Damage Guard.
+- **Team balance** (carry ↔ balanced): every per-fighter component is `(1 − f) × average + f × weakest fighter`; default f = 15%.
+- **Style cohesion**: each fighter has a Strike/Blast lean — a clear base-stat lean (>8%) first, otherwise the Strike vs Blast boosts written in its main + unique abilities, otherwise Mixed. Cohesion = share of its received ATK buffs (Z, Zenkai, equipment, tier) on its own side (Mixed units want both sides equal). Exact per-character Strike/Blast card counts are not in public open data, so card counts are not used.
+- **Scan depth**: Thorough widens the fighter candidate list (≈1.6×) and fully evaluates twice as many teams.
+- **Ability Bonus**: per fighter, the sum of HP, Strike/Blast ATK, Strike/Blast DEF, Damage, Damage Guard and Ki bonuses from every source and layer; the team figure adds up the fighters. Grade (S+…D) is a band of the optimizer score.
+
+## My box and Zenkai
+- Owned Zenkai-capable characters are counted without their Zenkai Z Ability unless marked as Zenkai Awakened in the box. That also gives them the larger pre-Zenkai PvP tier bonus. Characters not in the box are assumed fully awakened.
+
 ## Optimization score
 An internal metric, not a game value. Ten components on 0–100, each shown in the app: battle synergy (shared class/Episode/character tags among fighters), Z efficiency, Zenkai efficiency, Health support, offense, defense, equipment, Z coverage, Leader efficiency, locked-character coverage. Components use a saturating curve so differences near the top still count. Weights per priority live in `src/engine/weights.ts`. A penalty applies for Z Abilities that reach no fighter (bench Assault abilities excepted — they are inherently inactive and reported as info).
 

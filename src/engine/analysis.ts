@@ -6,7 +6,7 @@ import { SearchContext } from './generator';
 import { TIER_LABEL, tierKey } from './pvp';
 import { evaluateTeam, type TeamEval } from './scoring';
 import { STAT_LABEL } from './stats';
-import type { Priority } from './weights';
+import { DEFAULT_EVAL, type EvalOptions, type Priority } from './weights';
 import { abilitiesOf, BATTLE, BENCH, matches, newMember, type Team } from './zAbilities';
 
 const pct = (x: number) => `${x >= 0 ? '+' : ''}${Math.round(x)}%`;
@@ -25,7 +25,7 @@ export interface BenchOption {
 
 /** Everything a character on the bench would give the three fighters (Leader privilege included). */
 export function benchContribution(team: Team, charId: number, db: Db, ctx: SearchContext): BenchOption {
-  const m = newMember(charId, db.char(charId));
+  const m = newMember(charId, db.char(charId), team);
   const statTotals: Partial<Record<StatKey, number>> = {};
   const receivers = new Set<number>();
   let zenkai = false;
@@ -57,7 +57,7 @@ export function benchContribution(team: Team, charId: number, db: Db, ctx: Searc
 
 export function benchRanking(team: Team, db: Db, p: Priority, pool: number[], limit = 10): { chosen: BenchOption[]; alternatives: BenchOption[] } {
   const ids = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])], { ruleset: team.ruleset, llBand: team.llBand });
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened });
   const chosen = BENCH.map((i) => team.slots[i]).filter(Boolean).map((m) => benchContribution(team, m!.charId, db, ctx));
   const alts = pool.filter((id) => !ids.has(id)).map((id) => benchContribution(team, id, db, ctx)).filter((b) => b.useful > 0).sort((a, b) => b.useful - a.useful).slice(0, limit);
   const weakest = [...chosen].sort((a, b) => a.useful - b.useful)[0];
@@ -77,10 +77,10 @@ export function benchRanking(team: Team, db: Db, p: Priority, pool: number[], li
 
 // ------------------------------------------------------------------ leader
 export interface LeaderOption { slot: number; charId: number; evaluation: TeamEval; delta: Record<string, number> }
-export function leaderComparison(team: Team, db: Db, p: Priority, locked: number[] = []): LeaderOption[] {
-  const cur = evaluateTeam(team, db, p, locked);
+export function leaderComparison(team: Team, db: Db, p: Priority, locked: number[] = [], opts: EvalOptions = DEFAULT_EVAL): LeaderOption[] {
+  const cur = evaluateTeam(team, db, p, locked, opts);
   return BATTLE.filter((i) => team.slots[i]).map((slot) => {
-    const e = evaluateTeam({ ...team, leader: slot }, db, p, locked);
+    const e = evaluateTeam({ ...team, leader: slot }, db, p, locked, opts);
     return {
       slot, charId: team.slots[slot]!.charId, evaluation: e,
       delta: {
@@ -143,20 +143,20 @@ export function diagnose(team: Team, ev: TeamEval, db: Db): Problem[] {
 }
 
 /** Best single replacements, ranked by overall score gain. Locked characters are never replaced. */
-export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], locked: number[], limit = 4, fighterPool?: number[]): Swap[] {
-  const cur = evaluateTeam(team, db, p, locked);
+export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], locked: number[], limit = 4, fighterPool?: number[], opts: EvalOptions = DEFAULT_EVAL): Swap[] {
+  const cur = evaluateTeam(team, db, p, locked, opts);
   const inTeam = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])], { ruleset: team.ruleset, llBand: team.llBand });
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened, coverage: opts.coverage });
   const fighterSet = fighterPool ? new Set(fighterPool) : null;
   const trio = BATTLE.map((i) => team.slots[i]?.charId).filter((x): x is number => x !== undefined);
   const leaderId = team.leader !== null ? team.slots[team.leader]?.charId ?? null : null;
   const free = pool.filter((id) => !inTeam.has(id));
   const swaps: Swap[] = [];
   const tryPut = (slot: number, toId: number) => {
-    const slots = team.slots.map((m, i) => (i === slot ? newMember(toId, db.char(toId)) : m));
+    const slots = team.slots.map((m, i) => (i === slot ? newMember(toId, db.char(toId), team) : m));
     let t: Team = { ...team, slots };
-    if (slot < 3) t = withOptimizedEquipment(t, db, p);
-    const e = evaluateTeam(t, db, p, locked);
+    if (slot < 3) t = withOptimizedEquipment(t, db, p, undefined, opts.coverage);
+    const e = evaluateTeam(t, db, p, locked, opts);
     swaps.push({ slot, fromId: team.slots[slot]?.charId ?? null, toId, team: t, evaluation: e, gain: e.overall - cur.overall });
   };
   for (const slot of BENCH) {
