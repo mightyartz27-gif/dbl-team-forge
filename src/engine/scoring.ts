@@ -186,9 +186,11 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
     leaderEfficiency: saturate(leaderGain, REF.leader),
     locked: clamp(lockedCov * 100),
     cohesion: clamp(cohesionVal * 100),
+    // Ability Bonus per fighter (blended with the weakest fighter like the other components)
+    abilityBonus: saturate(stacked.length ? (1 - opts.floor) * (stacked.reduce((s, x) => s + x.total, 0) / stacked.length) + opts.floor * Math.min(...stacked.map((x) => x.total)) : 0, rating ? REF.abilityBonusRating : REF.abilityBonus),
   };
   const cw = componentWeights(p);
-  if (!opts.cohesion) cw.cohesion = 0;
+  if (!opts.cohesion && p !== 'cohesion') cw.cohesion = 0;
   if (!lockedSlots.length) cw.locked = 0;
   const wsum = Object.values(cw).reduce((s, x) => s + x, 0);
   const wasted = abilities.filter((a) => a.wasted).length;
