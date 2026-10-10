@@ -9,7 +9,7 @@ export const PRIORITIES: { id: Priority; label: string; blurb: string }[] = [
   { id: 'balanced', label: 'Balanced', blurb: 'Offense, defense and Health in proportion.' },
   { id: 'abilitybonus', label: 'Ability Bonus', blurb: 'Biggest total stacked bonus on the fighters: HP, ATK, DEF, Damage, Guard and Ki all count equally.' },
   { id: 'cohesion', label: 'Deck cohesion', blurb: "Fighters get their buffs on their own Strike/Blast side, so every ATK bonus lands on the cards they use." },
-  { id: 'zability', label: 'Z Ability', blurb: 'Most team-wide Z Ability stats on the fighters.' },
+  { id: 'zability', label: 'Z Ability', blurb: "Most Z Ability stats on the fighters, weighted by each fighter's role (Zenkai and equipment don't count here)." },
   { id: 'zenkai', label: 'Zenkai', blurb: 'Most Zenkai buffs that actually reach the fighters.' },
   { id: 'health', label: 'Health', blurb: 'Health first, then defense.' },
   { id: 'strike', label: 'Strike', blurb: 'Strike ATK and Strike damage.' },

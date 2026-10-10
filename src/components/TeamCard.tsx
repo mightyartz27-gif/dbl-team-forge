@@ -35,7 +35,8 @@ export function TeamCard({ r, index }: { r: GeneratedTeam; index: number }) {
       <Formation team={r.team} coverage={m.coverage} size="lg" lockedIds={locked} />
       <p className="mt-2 text-sm text-mute">Leader: <span className="text-cream">{leader}</span></p>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <Metric label="Ability Bonus" value={`+${Math.round(m.abilityBonus)}%`} tone="var(--color-gi)" />
+        <Metric label="Ability Bonus (3)" value={`+${Math.round(m.abilityBonus)}%`} tone="var(--color-gi)" />
+        <Metric label="Whole team (6)" value={`+${Math.round(m.abilityBonusTeam)}%`} tone="var(--color-gi)" />
         <Metric label="Z coverage" value={`${Math.round(cov * 100)}%`} />
         <Metric label="Zenkai active" value={String(m.zenkaiActive)} />
         <Metric label="Health" value={fmtPct(m.health)} />

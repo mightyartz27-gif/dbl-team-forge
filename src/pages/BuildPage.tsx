@@ -11,10 +11,11 @@ import { ScanOptions } from '../components/ScanOptions';
 import { useStore } from '../state/store';
 
 export function BuildPage() {
-  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool, evalOpts, notAwakened } = useStore();
+  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool, evalOpts, notAwakened, target, setTarget } = useStore();
+  const [targetInfo, setTargetInfo] = useState<{ reached: boolean; best: number; value: number; basis: 'team' | 'fighters' } | null>(null);
   const pvp = db.data.pvp;
   const rating = ruleset === 'rating' && !!pvp;
-  const canRun = locked.length > 0 || rating;
+  const canRun = locked.length > 0 || rating || target.on;
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -32,8 +33,15 @@ export function BuildPage() {
   };
 
   const generate = async () => {
-    setError(null); setResults([]); setGenerating(true);
+    setError(null); setResults([]); setGenerating(true); setTargetInfo(null);
     try {
+      if (target.on) {
+        const info = await runner.generate(locked, pool, [], (r) => setResults((prev) => [...prev, r]),
+          { ...(rating ? { fighterPool, ruleset: 'rating' as const, llBand } : { ruleset: 'standard' as const }), notAwakened, evalOpts, target: { value: target.value, basis: target.basis }, rankBy: priority });
+        if (info) setTargetInfo({ ...info, value: target.value, basis: target.basis });
+        setGenerating(false);
+        return;
+      }
       await runner.generate(locked, pool, archetypes(), (r) => setResults((prev) => [...prev, r]), rating ? { fighterPool, ruleset: 'rating', llBand, notAwakened, evalOpts } : { ruleset: 'standard', notAwakened, evalOpts });
     } catch (e) { setError((e as Error).message); }
     setGenerating(false);
@@ -71,6 +79,27 @@ export function BuildPage() {
           {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setPriority(p.id)}>{p.label}</Chip>)}
         </div>
         <p className="mt-2 text-sm text-mute">{PRIORITIES.find((p) => p.id === priority)?.blurb} You'll also get {['Balanced', 'Ability Bonus', 'Z Ability', 'Zenkai', 'Health'].filter((l) => l !== PRIORITIES.find((p) => p.id === priority)?.label).join(', ')}, offense and tag-synergy variants to compare.</p>
+      </Section>
+
+      <Section title="Target Ability Bonus">
+        <label className="mb-3 flex cursor-pointer items-start gap-3 rounded-xl bg-panel p-3">
+          <input type="checkbox" checked={target.on} onChange={(e) => setTarget({ on: e.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-gi)]" />
+          <span><span className="block font-semibold">Find teams that reach a target</span>
+            <span className="block text-sm text-mute">Picks the fighters and bench that reach your number, then ranks those teams by "{PRIORITIES.find((p) => p.id === priority)?.label}".</span></span>
+        </label>
+        {target.on && (
+          <div className="grid gap-3">
+            <div>
+              <div className="mb-1 flex items-baseline justify-between"><span className="text-sm font-semibold text-mute">Target</span><span className="num text-2xl font-extrabold text-gi">+{target.value.toLocaleString()}%</span></div>
+              <input type="range" min={1000} max={12000} step={250} value={target.value} onChange={(e) => setTarget({ value: +e.target.value })} className="w-full accent-[var(--color-gi)]" aria-label="Target Ability Bonus" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={target.basis === 'team'} onClick={() => setTarget({ basis: 'team' })}>Whole team (6)</Chip>
+              <Chip active={target.basis === 'fighters'} onClick={() => setTarget({ basis: 'fighters' })}>Fighters only (3)</Chip>
+            </div>
+            <p className="text-xs text-mute">Whole team adds up all six members, as most community team builders do; fighters only counts the three who battle. Locks, your box, PvP tiers and scan options still apply.</p>
+          </div>
+        )}
       </Section>
 
       <Section title="Scan options">
@@ -118,7 +147,7 @@ export function BuildPage() {
       </label>
 
       <Button full onClick={generate} disabled={!canRun || generating}>
-        {generating ? `Searching… ${results.length} teams found` : locked.length ? 'Find best teams' : rating ? 'Suggest PvP teams for me' : 'Lock at least one character'}
+        {generating ? `Searching… ${results.length} teams found` : target.on ? `Find teams reaching +${target.value.toLocaleString()}%` : locked.length ? 'Find best teams' : rating ? 'Suggest PvP teams for me' : 'Lock at least one character'}
       </Button>
       {rating && !locked.length && !generating && <p className="mt-2 text-sm text-mute">No lock needed in Rating Match mode: the search picks all three fighters from your tiers.</p>}
       {error && <p className="mt-3 text-bad">Search stopped: {error}</p>}
@@ -129,8 +158,15 @@ export function BuildPage() {
             <h2 className="font-display text-2xl font-extrabold">Recommended teams</h2>
             <Button small kind="quiet" onClick={() => go('compare')}>Compare all</Button>
           </div>
+          {targetInfo && (
+            <p className={`mb-3 rounded-xl p-3 text-sm ${targetInfo.reached ? 'bg-panel text-cream' : 'bg-panel text-warn'}`}>
+              {targetInfo.reached
+                ? `${results.length} team${results.length === 1 ? ' reaches' : 's reach'} +${targetInfo.value.toLocaleString()}% (${targetInfo.basis === 'team' ? 'whole team' : 'fighters'}), ranked by ${PRIORITIES.find((p) => p.id === priority)?.label}. Highest found: +${Math.round(targetInfo.best).toLocaleString()}%.`
+                : `No team reached +${targetInfo.value.toLocaleString()}%. The highest found is +${Math.round(targetInfo.best).toLocaleString()}%; these are the closest. Lower the target, unlock a character, include more tiers, or turn off "Only characters I own".`}
+            </p>
+          )}
           <p className="mb-3 text-sm text-mute">
-            Searched {pool.length} characters{locked.length ? ` around ${locked.map((id) => db.char(id).name).join(', ')}` : ''}{rating ? `, fighters from ${fighterPool.length} tier-eligible characters` : ''}. Each team scored highest for its criteria; swipe to compare.
+            Searched {pool.length} characters{locked.length ? ` around ${locked.map((id) => db.char(id).name).join(', ')}` : ''}{rating ? `, fighters from ${fighterPool.length} tier-eligible characters` : ''}. {targetInfo ? 'Swipe to compare.' : 'Each team scored highest for its criteria; swipe to compare.'}
           </p>
           <div className="scroll-x snap-x-cards -mx-4 flex gap-3 px-4 pb-2 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
             {results.map((r, i) => <TeamCard key={i} r={r} index={i} />)}

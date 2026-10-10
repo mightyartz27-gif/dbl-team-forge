@@ -1,17 +1,18 @@
 /// <reference lib="webworker" />
 import type { GameData } from '../data/types';
 import { Db } from './db';
-import { generateTeams, type GeneratedTeam } from './generator';
+import { generateForTarget, generateTeams, type GeneratedTeam } from './generator';
 import type { EvalOptions, Priority } from './weights';
 
 let db: Db | null = null;
 export type WorkerIn =
   | { type: 'init'; data: GameData }
-  | { type: 'generate'; id: number; locked: number[]; lockedBench: number[]; pool: number[]; priorities: Priority[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; evalOpts?: EvalOptions };
+  | { type: 'generate'; id: number; locked: number[]; lockedBench: number[]; pool: number[]; priorities: Priority[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; evalOpts?: EvalOptions; target?: { value: number; basis: 'team' | 'fighters' }; rankBy?: Priority };
 export type WorkerOut =
   | { type: 'ready' }
   | { type: 'progress'; id: number; result: GeneratedTeam; done: number; total: number }
   | { type: 'done'; id: number }
+  | { type: 'target'; id: number; reached: boolean; best: number }
   | { type: 'error'; id: number; message: string };
 
 self.onmessage = (ev: MessageEvent<WorkerIn>) => {
@@ -22,6 +23,14 @@ self.onmessage = (ev: MessageEvent<WorkerIn>) => {
       // one priority at a time so results stream in; generateTeams de-duplicates within a call,
       // so pass the full list and stream from its onProgress hook.
       const seen: GeneratedTeam[] = [];
+      if (msg.target) {
+        const t = generateForTarget(db, {
+          locked: msg.locked, lockedBench: msg.lockedBench, pool: msg.pool, priorities: [], fighterPool: msg.fighterPool, ruleset: msg.ruleset, llBand: msg.llBand, notAwakened: msg.notAwakened, evalOpts: msg.evalOpts, target: msg.target,
+        }, msg.rankBy ?? 'balanced', (r) => { seen.push(r); (self as unknown as Worker).postMessage({ type: 'progress', id: msg.id, result: r, done: seen.length, total: 4 }); });
+        (self as unknown as Worker).postMessage({ type: 'target', id: msg.id, reached: t.reached, best: t.best });
+        (self as unknown as Worker).postMessage({ type: 'done', id: msg.id });
+        return;
+      }
       const res = generateTeams(db, {
         locked: msg.locked, lockedBench: msg.lockedBench, pool: msg.pool, priorities: msg.priorities, fighterPool: msg.fighterPool, ruleset: msg.ruleset, llBand: msg.llBand, notAwakened: msg.notAwakened, evalOpts: msg.evalOpts,
         onResult: (r) => { seen.push(r); (self as unknown as Worker).postMessage({ type: 'progress', id: msg.id, result: r, done: seen.length, total: msg.priorities.length }); },

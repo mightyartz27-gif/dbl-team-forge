@@ -85,6 +85,8 @@ export interface GenerateOptions {
   llBand?: number;
   notAwakened?: number[];      // owned but not Zenkai Awakened (My box)
   evalOpts?: EvalOptions;
+  /** Target Ability Bonus: find teams reaching this total (fighters only, or all six members) */
+  target?: { value: number; basis: 'team' | 'fighters' };
   pool: number[];              // allowed character ids (whole db or the user's box)
   priorities: Priority[];
   perPriority?: number;        // shortlist size to fully evaluate
@@ -111,7 +113,7 @@ function combos(arr: number[], k: number): number[][] {
 }
 
 /** Fast search: best (trio, leader, bench) candidates under one priority. */
-export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number, fighterPool?: number[], depth: 'quick' | 'thorough' = 'quick'): Candidate[] {
+export function searchCandidates(ctx: SearchContext, locked: number[], lockedBench: number[], pool: number[], keep: number, fighterPool?: number[], depth: 'quick' | 'thorough' = 'quick', benchCounts = false): Candidate[] {
   const sw = sourceWeights(ctx.p);
   const need = 3 - locked.length;
   const free = pool.filter((id) => !locked.includes(id) && !lockedBench.includes(id));
@@ -140,11 +142,15 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
   const benchPool = free;
   const nb = benchPool.length, nr = receivers.length;
   const Rm = new Float64Array(nb * nr);
+  // when the bench's own bonuses count (whole-team Ability Bonus): what each bench candidate receives from each fighter, plus from itself
+  const Rin = benchCounts ? new Float64Array(nb * nr) : null;
+  const self = benchCounts ? new Float64Array(nb) : null;
   const Ut: Record<AttackType, Float64Array> = { strike: new Float64Array(nb), blast: new Float64Array(nb), mixed: new Float64Array(nb) };
   benchPool.forEach((b, bi) => {
     const B = ctx.pre.get(b)!;
     for (const t of TYPES) Ut[t][bi] = B.uncond[t];
-    receivers.forEach((r, ri) => { Rm[bi * nr + ri] = b === r ? -1e9 : ctx.R(b, r); });
+    receivers.forEach((r, ri) => { Rm[bi * nr + ri] = b === r ? -1e9 : ctx.R(b, r); if (Rin) Rin[bi * nr + ri] = b === r ? 0 : ctx.R(r, b); });
+    if (self) self[bi] = ctx.R(b, b);
   });
   const lockedBenchVal = (trio: number[], leader: number) => {
     let v = 0;
@@ -175,6 +181,7 @@ export function searchCandidates(ctx: SearchContext, locked: number[], lockedBen
       for (let bi = 0; bi < nb; bi++) {
         let m = U[bi];
         for (let k = 0; k < ri.length; k++) if (k !== li) m += Rm[bi * nr + ri[k]];
+        if (Rin) { for (let k = 0; k < ri.length; k++) m += Rin[bi * nr + ri[k]]; m += self![bi]; }
         if (m <= topV[openBench - 1] || m <= 0) continue;
         if (inTrio.has(benchPool[bi])) continue;
         let j = openBench - 1;
@@ -201,6 +208,38 @@ export function buildTeam(c: Candidate, db: Db, rules: RulesetOptions = {}): Tea
   const slots = [...c.trio, ...c.bench].map((id) => (id !== undefined ? newMember(id, db.char(id), rules) : null));
   while (slots.length < 6) slots.push(null);
   return { slots, leader: c.trio.indexOf(c.leader), ruleset: rules.ruleset ?? 'standard', llBand: rules.llBand ?? 1, notAwakened: rules.notAwakened };
+}
+
+export interface TargetResult { teams: GeneratedTeam[]; reached: boolean; best: number }
+
+/**
+ * Target Ability Bonus: search for the highest Ability Bonus teams (fighters only, or all six),
+ * keep the ones that reach the target, and rank those by the user's priority so they're also good teams.
+ * If nothing reaches the target, return the closest teams instead.
+ */
+export function generateForTarget(db: Db, o: GenerateOptions, rankBy: Priority, onResult?: (r: GeneratedTeam) => void): TargetResult {
+  const target = o.target!;
+  const opts = { ...(o.evalOpts ?? DEFAULT_EVAL), depth: 'thorough' as const };
+  const pool = [...new Set([...o.pool, ...o.locked, ...(o.lockedBench ?? [])])].filter((id) => db.chars.has(id));
+  const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage };
+  const ctx = new SearchContext(db, 'abilitybonus', pool, rules);
+  const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, 30, o.fighterPool, 'thorough', target.basis === 'team');
+  const value = (e: TeamEval) => (target.basis === 'team' ? e.metrics.abilityBonusTeam : e.metrics.abilityBonus);
+  const all = cands.map((c, i) => {
+    const team = withOptimizedEquipment(buildTeam(c, db, rules), db, 'abilitybonus', o.allowedEquipment, opts.coverage);
+    return { priority: rankBy, team, evaluation: evaluateTeam(team, db, rankBy, o.locked, opts), candidateRank: i };
+  });
+  const best = Math.max(0, ...all.map((r) => value(r.evaluation)));
+  const hits = all.filter((r) => value(r.evaluation) >= target.value).sort((a, b) => b.evaluation.overall - a.evaluation.overall);
+  const chosen: GeneratedTeam[] = [];
+  const seen = new Set<string>();
+  for (const r of hits.length ? hits : all.sort((a, b) => value(b.evaluation) - value(a.evaluation))) {
+    const k = sixKey(r.team);
+    if (seen.has(k)) continue;
+    seen.add(k); chosen.push(r); onResult?.(r);
+    if (chosen.length >= 4) break;
+  }
+  return { teams: chosen, reached: hits.length > 0, best };
 }
 
 export const teamKey = (t: Team) => t.slots.map((m) => m?.charId ?? '-').join(',') + '@' + t.leader;

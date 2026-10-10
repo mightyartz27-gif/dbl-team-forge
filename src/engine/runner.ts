@@ -1,6 +1,6 @@
 import type { GameData } from '../data/types';
 import type { Db } from './db';
-import { generateTeams, type GeneratedTeam } from './generator';
+import { generateForTarget, generateTeams, type GeneratedTeam } from './generator';
 import type { EvalOptions, Priority } from './weights';
 import type { WorkerIn, WorkerOut } from './worker';
 import GenWorker from './worker?worker&inline';
@@ -21,10 +21,15 @@ export class Runner {
       } catch { resolve(false); }
     });
   }
-  async generate(locked: number[], pool: number[], priorities: Priority[], onResult: (r: GeneratedTeam) => void, extra: { lockedBench?: number[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; evalOpts?: EvalOptions } = {}): Promise<void> {
+  async generate(locked: number[], pool: number[], priorities: Priority[], onResult: (r: GeneratedTeam) => void, extra: { lockedBench?: number[]; fighterPool?: number[]; ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; evalOpts?: EvalOptions; target?: { value: number; basis: 'team' | 'fighters' }; rankBy?: Priority } = {}): Promise<{ reached: boolean; best: number } | null> {
     const lockedBench = extra.lockedBench ?? [];
     const useWorker = await this.ready;
     if (!useWorker || !this.worker) {
+      if (extra.target) {
+        await new Promise((r) => setTimeout(r, 16));
+        const t = generateForTarget(this.db, { locked, lockedBench, pool, priorities: [], fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand, notAwakened: extra.notAwakened, evalOpts: extra.evalOpts, target: extra.target }, extra.rankBy ?? 'balanced', onResult);
+        return { reached: t.reached, best: t.best };
+      }
       // main-thread fallback: yield between priorities so the UI can paint progress
       const done = new Set<string>();
       for (const p of priorities) {
@@ -35,20 +40,23 @@ export class Runner {
           if (!done.has(k)) { done.add(k); onResult(r); }
         }
       }
-      return;
+      return null;
     }
     const id = ++this.seq;
     const w = this.worker;
+    let info: { reached: boolean; best: number } | null = null;
     await new Promise<void>((resolve, reject) => {
       const handler = (e: MessageEvent<WorkerOut>) => {
         const m = e.data;
         if (!('id' in m) || m.id !== id) return;
         if (m.type === 'progress') onResult(m.result);
+        if (m.type === 'target') info = { reached: m.reached, best: m.best };
         if (m.type === 'done') { w.removeEventListener('message', handler); resolve(); }
         if (m.type === 'error') { w.removeEventListener('message', handler); reject(new Error(m.message)); }
       };
       w.addEventListener('message', handler);
-      w.postMessage({ type: 'generate', id, locked, lockedBench, pool, priorities, fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand, notAwakened: extra.notAwakened, evalOpts: extra.evalOpts } satisfies WorkerIn);
+      w.postMessage({ type: 'generate', id, locked, lockedBench, pool, priorities, fighterPool: extra.fighterPool, ruleset: extra.ruleset, llBand: extra.llBand, notAwakened: extra.notAwakened, evalOpts: extra.evalOpts, target: extra.target, rankBy: extra.rankBy } satisfies WorkerIn);
     });
+    return info;
   }
 }

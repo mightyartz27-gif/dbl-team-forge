@@ -44,6 +44,8 @@ export interface TeamEval {
     sharedTags: { id: number; count: number }[];
     /** sum of every fighter's stacked TOTAL */
     abilityBonus: number;
+    /** same sum over all six members (fighters + bench), the way many community tools count it */
+    abilityBonusTeam: number;
     stacked: Stacked[];
     styles: { strike: number; blast: number; mixed: number };
     grade: string;
@@ -210,6 +212,7 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
       healthBuffs: abilities.filter((a) => a.givesHealth).length,
       wasted, equipActive, equipConditional, equipPieces, coverage: cov, sharedTags: shared,
       abilityBonus: stacked.reduce((s, x) => s + x.total, 0), stacked, styles, grade: grade(overall),
+      abilityBonusTeam: sheet.members.reduce((s, ms) => s + (ms ? STACK_STATS.reduce((a, k) => { const t = ms.stats[k].total; return a + t.base + t.pure + t.direct; }, 0) : 0), 0),
     },
     uncalculated: collectUncalculated(team, db, sheet),
   };

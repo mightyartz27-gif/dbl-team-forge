@@ -46,8 +46,13 @@ Power Resonance (triggers at battle start), battle traits (counters, cover chang
 - **Ability Bonus** weighs exactly the stats the Ability Bonus figure adds up (HP, Strike/Blast ATK, Strike/Blast DEF, Damage, Damage Guard, Ki) equally, in the search and in equipment picks, and scores the per-fighter total (blended with the weakest fighter per the Team balance slider). It is always included among the generated variants.
 - **Deck cohesion** values only buffs on each fighter's own Strike/Blast side and counts off-side buffs against it, so the search, Leader choice and equipment steer toward cohesive teams. Mixed-lean fighters want both sides equally.
 
+## Ability Bonus: fighters vs whole team, and Target mode
+- **Z Ability** (priority) values only Z and Assault Z bonuses on the fighters, weighted by each fighter's role. **Ability Bonus** adds up everything a member receives — Z, Zenkai, Assault, equipment, PvP tier — with every stat counted equally.
+- Two totals are shown: **fighters (3)** and **whole team (6)**. Bench members also receive Z Abilities, and most community team builders add all six, which is why their headline numbers (8,000+) are higher than a fighters-only total.
+- **Target Ability Bonus** searches with the Ability Bonus weights (and, for the whole-team basis, also counts what each bench candidate receives from the fighters and itself), fully evaluates 30 finalists, keeps those at or above the target, and ranks them by the selected priority. If none reach it, the closest teams and the highest value found are shown.
+
 ## My box and Zenkai
-- Owned Zenkai-capable characters are counted without their Zenkai Z Ability unless marked as Zenkai Awakened in the box. That also gives them the larger pre-Zenkai PvP tier bonus. Characters not in the box are assumed fully awakened.
+- Owned Zenkai-capable characters count as Zenkai Awakened by default. Mark the ones you haven't awakened; those are counted without their Zenkai Z Ability (and get the larger pre-Zenkai PvP tier bonus). Characters not in the box are assumed fully awakened.
 
 ## Optimization score
 An internal metric, not a game value. Ten components on 0–100, each shown in the app: battle synergy (shared class/Episode/character tags among fighters), Z efficiency, Zenkai efficiency, Health support, offense, defense, equipment, Z coverage, Leader efficiency, locked-character coverage. Components use a saturating curve so differences near the top still count. Weights per priority live in `src/engine/weights.ts`. A penalty applies for Z Abilities that reach no fighter (bench Assault abilities excepted — they are inherently inactive and reported as info).

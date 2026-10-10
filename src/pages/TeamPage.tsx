@@ -66,8 +66,8 @@ export function TeamPage() {
         {filled > 0 && (
           <div className="mt-3 grid grid-cols-4 gap-2">
             <div className="col-span-2 rounded-xl bg-panel px-3 py-2">
-              <div className="text-[11px] text-mute">Ability Bonus (fighters)</div>
-              <div className="num text-2xl font-extrabold leading-7 text-gi">+{Math.round(ev.metrics.abilityBonus)}%</div>
+              <div className="text-[11px] text-mute">Ability Bonus: fighters / whole team</div>
+              <div className="num text-2xl font-extrabold leading-7 text-gi">+{Math.round(ev.metrics.abilityBonus)}% <span className="text-base text-cream">/ +{Math.round(ev.metrics.abilityBonusTeam)}%</span></div>
             </div>
             <div className="rounded-xl bg-panel px-3 py-2">
               <div className="text-[11px] text-mute">Grade</div>

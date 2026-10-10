@@ -30,7 +30,7 @@ export function CharactersPage() {
       </div>
       {boxMode && (
         <div className="mb-3 rounded-xl bg-panel p-3 text-sm">
-          Tap characters to mark them as owned. For Zenkai characters you own, tap the small Z to mark them as Zenkai Awakened; owned characters without it are counted without Zenkai.
+          Tap characters to mark them as owned. Owned Zenkai characters count as Zenkai Awakened (yellow Z). Tap the Z to mark one you haven't awakened yet; it's then counted without its Zenkai Z Ability.
           <div className="mt-2 flex flex-wrap gap-2">
             <Button small kind="ghost" onClick={() => setImporting(true)}>Import card codes</Button>
             <Button small kind="ghost" onClick={() => setBox([...new Set([...box, ...list.map((c) => c.id)])])}>Add all shown</Button>

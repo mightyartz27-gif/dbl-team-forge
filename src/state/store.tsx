@@ -32,7 +32,7 @@ interface Store {
   setBox: (ids: number[]) => void;
   boxOnly: boolean;
   setBoxOnly: (b: boolean) => void;
-  /** box characters marked as Zenkai Awakened */
+  /** box characters that count as Zenkai Awakened (the default for owned Zenkai units) */
   boxZenkai: Set<number>;
   toggleBoxZenkai: (id: number) => void;
   setBoxZenkai: (ids: number[]) => void;
@@ -45,6 +45,9 @@ interface Store {
   history: HistoryEntry[];
   pushHistory: (e: Omit<HistoryEntry, 'at'>) => void;
   clearHistory: () => void;
+  // Target Ability Bonus
+  target: { on: boolean; value: number; basis: 'team' | 'fighters' };
+  setTarget: (t: Partial<{ on: boolean; value: number; basis: 'team' | 'fighters' }>) => void;
   pool: number[];
   // Rating Match (PvP)
   ruleset: 'standard' | 'rating';
@@ -117,10 +120,27 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
   const setBox = useCallback((ids: number[]) => { const n = new Set(ids); write('dbl.box', ids); setBoxState(n); }, []);
   const [boxOnly, setBoxOnlyState] = useState<boolean>(() => read('dbl.boxOnly', false));
   const setBoxOnly = (b: boolean) => { write('dbl.boxOnly', b); setBoxOnlyState(b); };
-  const [boxZenkai, setBoxZenkaiState] = useState<Set<number>>(() => new Set(read<number[]>('dbl.boxZenkai', [])));
-  const toggleBoxZenkai = useCallback((id: number) => setBoxZenkaiState((b) => { const n = new Set(b); n.has(id) ? n.delete(id) : n.add(id); write('dbl.boxZenkai', [...n]); return n; }), []);
-  const setBoxZenkai = useCallback((ids: number[]) => { write('dbl.boxZenkai', ids); setBoxZenkaiState(new Set(ids)); }, []);
-  const notAwakened = useMemo(() => [...box].filter((id) => db.chars.get(id)?.zenkai && !boxZenkai.has(id)), [box, boxZenkai, db]);
+  // Owned Zenkai units count as awakened unless explicitly marked "not awakened".
+  // Migration: older versions stored the awakened set instead; keep those choices.
+  const [notZ, setNotZState] = useState<Set<number>>(() => {
+    const stored = read<number[] | null>('dbl.boxNotZenkai', null);
+    if (stored) return new Set(stored);
+    const oldAwakened = read<number[]>('dbl.boxZenkai', []);
+    if (!oldAwakened.length) return new Set();
+    const aw = new Set(oldAwakened);
+    return new Set(read<number[]>('dbl.box', []).filter((id) => db.chars.get(id)?.zenkai && !aw.has(id)));
+  });
+  const saveNotZ = (n: Set<number>) => { write('dbl.boxNotZenkai', [...n]); return n; };
+  const boxZenkai = useMemo(() => new Set([...box].filter((id) => db.chars.get(id)?.zenkai && !notZ.has(id))), [box, notZ, db]);
+  const toggleBoxZenkai = useCallback((id: number) => setNotZState((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return saveNotZ(n); }), []);
+  /** set exactly which box characters are awakened; every other owned Zenkai unit becomes "not awakened" */
+  const setBoxZenkai = useCallback((awakened: number[]) => {
+    const aw = new Set(awakened);
+    setNotZState(saveNotZ(new Set([...box].filter((id) => db.chars.get(id)?.zenkai && !aw.has(id)))));
+  }, [box, db]);
+  const notAwakened = useMemo(() => [...notZ].filter((id) => box.has(id)), [notZ, box]);
+  const [target, setTargetState] = useState(() => ({ on: false, value: 8000, basis: 'team' as 'team' | 'fighters', ...read<object>('dbl.target', {}) }));
+  const setTarget = useCallback((t: Partial<typeof target>) => setTargetState((cur) => { const n = { ...cur, ...t }; write('dbl.target', n); return n; }), []);
   const [evalOpts, setEvalOptsState] = useState<EvalOptions>(() => ({ ...DEFAULT_EVAL, ...read<Partial<EvalOptions>>('dbl.evalOpts', {}) }));
   const setEvalOpts = useCallback((o: Partial<EvalOptions>) => setEvalOptsState((cur) => { const n = { ...cur, ...o }; write('dbl.evalOpts', n); return n; }), []);
   const [history, setHistory] = useState<HistoryEntry[]>(() => read<HistoryEntry[]>('dbl.history', []).filter((h) => h.team.slots.every((m) => !m || db.chars.has(m.charId))));
@@ -176,7 +196,7 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
 
   const value: Store = {
     db, origin, runner: runnerRef.current, page, go, box, toggleBox, setBox, boxOnly, setBoxOnly, pool,
-    boxZenkai, toggleBoxZenkai, setBoxZenkai, notAwakened, evalOpts, setEvalOpts, history, pushHistory, clearHistory,
+    boxZenkai, toggleBoxZenkai, setBoxZenkai, notAwakened, evalOpts, setEvalOpts, history, pushHistory, clearHistory, target, setTarget,
     ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool,
     locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating,
     current, setCurrent, openTeam, charSheet, openChar, equipSheet, openEquip,
