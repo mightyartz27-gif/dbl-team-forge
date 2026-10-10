@@ -27,7 +27,7 @@ export function BuildPage() {
   const archetypes = (): Priority[] => {
     const focus = locked[0] !== undefined ? attackType(db.char(locked[0])) : 'mixed';
     const offense: Priority = focus === 'blast' ? 'blast' : focus === 'strike' ? 'strike' : 'damage';
-    const list: Priority[] = [priority, 'balanced', 'zability', 'zenkai', 'health', offense, 'tags'];
+    const list: Priority[] = [priority, 'balanced', 'abilitybonus', 'zability', 'zenkai', 'health', offense, 'tags'];
     return [...new Set(list)];
   };
 
@@ -70,7 +70,7 @@ export function BuildPage() {
         <div className="flex flex-wrap gap-2">
           {PRIORITIES.map((p) => <Chip key={p.id} active={priority === p.id} onClick={() => setPriority(p.id)}>{p.label}</Chip>)}
         </div>
-        <p className="mt-2 text-sm text-mute">{PRIORITIES.find((p) => p.id === priority)?.blurb} You'll also get balanced, Z Ability, Zenkai, Health, offense and tag-synergy variants to compare.</p>
+        <p className="mt-2 text-sm text-mute">{PRIORITIES.find((p) => p.id === priority)?.blurb} You'll also get {['Balanced', 'Ability Bonus', 'Z Ability', 'Zenkai', 'Health'].filter((l) => l !== PRIORITIES.find((p) => p.id === priority)?.label).join(', ')}, offense and tag-synergy variants to compare.</p>
       </Section>
 
       <Section title="Scan options">

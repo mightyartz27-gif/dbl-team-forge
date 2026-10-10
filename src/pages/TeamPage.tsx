@@ -23,7 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 const COMPONENT_LABEL: Record<string, string> = {
   battleSynergy: 'Battle synergy (shared tags)', zEfficiency: 'Z Ability efficiency', zenkaiEfficiency: 'Zenkai efficiency', healthSupport: 'Health support',
-  offense: 'Offense', defense: 'Defense', equipment: 'Equipment', coverage: 'Z coverage', leaderEfficiency: 'Leader efficiency', locked: 'Locked characters', cohesion: 'Style cohesion',
+  offense: 'Offense', defense: 'Defense', equipment: 'Equipment', coverage: 'Z coverage', leaderEfficiency: 'Leader efficiency', locked: 'Locked characters', cohesion: 'Style cohesion', abilityBonus: 'Ability Bonus',
 };
 
 export function TeamPage() {
