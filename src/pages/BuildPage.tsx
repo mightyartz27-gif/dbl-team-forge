@@ -11,7 +11,7 @@ import { ScanOptions } from '../components/ScanOptions';
 import { useStore } from '../state/store';
 
 export function BuildPage() {
-  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool, evalOpts, notAwakened, target, setTarget } = useStore();
+  const { db, locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating, runner, pool, boxOnly, setBoxOnly, box, go, ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool, evalOpts, notAwakened, target, setTarget, resetZenkai } = useStore();
   const [targetInfo, setTargetInfo] = useState<{ reached: boolean; best: number; value: number; basis: 'team' | 'fighters' } | null>(null);
   const pvp = db.data.pvp;
   const rating = ruleset === 'rating' && !!pvp;
@@ -142,7 +142,7 @@ export function BuildPage() {
         <span>
           <span className="font-semibold">Only characters I own</span>
           <span className="block text-sm text-mute">{box.size ? `${box.size} in your box` : 'Mark characters as owned on the Characters tab first.'}</span>
-          {notAwakened.length > 0 && <span className="block text-sm text-mute">{notAwakened.length} of them aren't Zenkai Awakened and are counted without Zenkai.</span>}
+          {notAwakened.length > 0 && <span className="block text-sm text-warn">{notAwakened.length} owned Zenkai unit{notAwakened.length === 1 ? ' is' : 's are'} marked as not awakened and counted without Zenkai. <button type="button" className="font-semibold text-gi underline" onClick={(e) => { e.preventDefault(); resetZenkai(); }}>Count all as awakened</button></span>}
         </span>
       </label>
 

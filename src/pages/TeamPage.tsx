@@ -277,8 +277,8 @@ function WhatIf({ before, after }: { before: TeamEval; after: TeamEval }) {
 
 // ------------------------------------------------------------------ bench
 function BenchPanel({ team, priority, pool, onSwap }: { team: Team; priority: Priority; pool: number[]; onSwap: (slot: number, id: number) => void }) {
-  const { db } = useStore();
-  const { chosen, alternatives } = useMemo(() => benchRanking(team, db, priority, pool, 10), [team, db, priority, pool]);
+  const { db, evalOpts } = useStore();
+  const { chosen, alternatives } = useMemo(() => benchRanking(team, db, priority, pool, 10, evalOpts), [team, db, priority, pool, evalOpts]);
   const [target, setTarget] = useState<number | null>(null);
   const fighters = [0, 1, 2].filter((i) => team.slots[i]);
   const name = (i: number) => db.char(team.slots[i]!.charId).name;

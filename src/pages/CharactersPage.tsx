@@ -6,7 +6,7 @@ import { emptyFilter, searchChars, type CharFilter } from '../lib/search';
 import { useStore } from '../state/store';
 
 export function CharactersPage() {
-  const { db, box, toggleBox, setBox, openChar, boxZenkai, toggleBoxZenkai, setBoxZenkai } = useStore();
+  const { db, box, toggleBox, setBox, openChar, boxZenkai, toggleBoxZenkai, setBoxZenkai, resetZenkai, notAwakened } = useStore();
   const [f, setF] = useState<CharFilter>(emptyFilter);
   const [boxMode, setBoxMode] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -34,6 +34,7 @@ export function CharactersPage() {
           <div className="mt-2 flex flex-wrap gap-2">
             <Button small kind="ghost" onClick={() => setImporting(true)}>Import card codes</Button>
             <Button small kind="ghost" onClick={() => setBox([...new Set([...box, ...list.map((c) => c.id)])])}>Add all shown</Button>
+            {notAwakened.length > 0 && <Button small onClick={resetZenkai}>Count all as awakened ({notAwakened.length} marked not)</Button>}
             <Button small kind="ghost" onClick={() => setBoxZenkai([...new Set([...boxZenkai, ...list.filter((c) => c.zenkai && box.has(c.id)).map((c) => c.id)])])}>Mark shown as Zenkai Awakened</Button>
             <Button small kind="ghost" onClick={() => { const shown = new Set(list.map((c) => c.id)); setBoxZenkai([...boxZenkai].filter((id) => !shown.has(id))); }}>Mark shown as not awakened</Button>
             {box.size > 0 && <Button small kind="quiet" onClick={() => confirm('Clear your whole box?') && setBox([])}>Clear box</Button>}
