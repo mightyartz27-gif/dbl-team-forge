@@ -52,7 +52,8 @@ Power Resonance (triggers at battle start), battle traits (counters, cover chang
 - **Target Ability Bonus** searches with the Ability Bonus weights (and, for the whole-team basis, also counts what each bench candidate receives from the fighters and itself), fully evaluates 30 finalists, keeps those at or above the target, and ranks them by the selected priority. If none reach it, the closest teams and the highest value found are shown.
 
 ## My box and Zenkai
-- Owned Zenkai-capable characters count as Zenkai Awakened by default. Mark the ones you haven't awakened; those are counted without their Zenkai Z Ability (and get the larger pre-Zenkai PvP tier bonus). Characters not in the box are assumed fully awakened.
+- **Prefer Zenkai support on the bench** (on by default) multiplies the value of Zenkai Z Abilities by 1.8 in the bench search and in the Zenkai efficiency component, so awakened Zenkai units that buff the fighters are picked first in every mode, including Ability Bonus and Target.
+- Owned Zenkai-capable characters count as Zenkai Awakened by default (marks saved by older versions are ignored). Mark the ones you haven't awakened; those are counted without their Zenkai Z Ability (and get the larger pre-Zenkai PvP tier bonus). Characters not in the box are assumed fully awakened.
 
 ## Optimization score
 An internal metric, not a game value. Ten components on 0–100, each shown in the app: battle synergy (shared class/Episode/character tags among fighters), Z efficiency, Zenkai efficiency, Health support, offense, defense, equipment, Z coverage, Leader efficiency, locked-character coverage. Components use a saturating curve so differences near the top still count. Weights per priority live in `src/engine/weights.ts`. A penalty applies for Z Abilities that reach no fighter (bench Assault abilities excepted — they are inherently inactive and reported as info).
