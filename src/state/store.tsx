@@ -36,6 +36,8 @@ interface Store {
   boxZenkai: Set<number>;
   toggleBoxZenkai: (id: number) => void;
   setBoxZenkai: (ids: number[]) => void;
+  /** count every owned Zenkai unit as awakened again */
+  resetZenkai: () => void;
   /** owned Zenkai-capable characters that are NOT awakened: counted without Zenkai */
   notAwakened: number[];
   // analysis options (shared by Build and Team)
@@ -121,16 +123,9 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
   const [boxOnly, setBoxOnlyState] = useState<boolean>(() => read('dbl.boxOnly', false));
   const setBoxOnly = (b: boolean) => { write('dbl.boxOnly', b); setBoxOnlyState(b); };
   // Owned Zenkai units count as awakened unless explicitly marked "not awakened".
-  // Migration: older versions stored the awakened set instead; keep those choices.
-  const [notZ, setNotZState] = useState<Set<number>>(() => {
-    const stored = read<number[] | null>('dbl.boxNotZenkai', null);
-    if (stored) return new Set(stored);
-    const oldAwakened = read<number[]>('dbl.boxZenkai', []);
-    if (!oldAwakened.length) return new Set();
-    const aw = new Set(oldAwakened);
-    return new Set(read<number[]>('dbl.box', []).filter((id) => db.chars.get(id)?.zenkai && !aw.has(id)));
-  });
-  const saveNotZ = (n: Set<number>) => { write('dbl.boxNotZenkai', [...n]); return n; };
+  // A fresh key on purpose: marks saved by older versions are ignored, so everyone starts with all awakened.
+  const [notZ, setNotZState] = useState<Set<number>>(() => new Set(read<number[]>('dbl.zenkaiOff', [])));
+  const saveNotZ = (n: Set<number>) => { write('dbl.zenkaiOff', [...n]); return n; };
   const boxZenkai = useMemo(() => new Set([...box].filter((id) => db.chars.get(id)?.zenkai && !notZ.has(id))), [box, notZ, db]);
   const toggleBoxZenkai = useCallback((id: number) => setNotZState((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return saveNotZ(n); }), []);
   /** set exactly which box characters are awakened; every other owned Zenkai unit becomes "not awakened" */
@@ -139,6 +134,7 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
     setNotZState(saveNotZ(new Set([...box].filter((id) => db.chars.get(id)?.zenkai && !aw.has(id)))));
   }, [box, db]);
   const notAwakened = useMemo(() => [...notZ].filter((id) => box.has(id)), [notZ, box]);
+  const resetZenkai = useCallback(() => setNotZState(saveNotZ(new Set())), []);
   const [target, setTargetState] = useState(() => ({ on: false, value: 8000, basis: 'team' as 'team' | 'fighters', ...read<object>('dbl.target', {}) }));
   const setTarget = useCallback((t: Partial<typeof target>) => setTargetState((cur) => { const n = { ...cur, ...t }; write('dbl.target', n); return n; }), []);
   const [evalOpts, setEvalOptsState] = useState<EvalOptions>(() => ({ ...DEFAULT_EVAL, ...read<Partial<EvalOptions>>('dbl.evalOpts', {}) }));
@@ -196,7 +192,7 @@ export function StoreProvider({ data, origin, children }: { data: GameData; orig
 
   const value: Store = {
     db, origin, runner: runnerRef.current, page, go, box, toggleBox, setBox, boxOnly, setBoxOnly, pool,
-    boxZenkai, toggleBoxZenkai, setBoxZenkai, notAwakened, evalOpts, setEvalOpts, history, pushHistory, clearHistory, target, setTarget,
+    boxZenkai, toggleBoxZenkai, setBoxZenkai, resetZenkai, notAwakened, evalOpts, setEvalOpts, history, pushHistory, clearHistory, target, setTarget,
     ruleset, setRuleset, tierFilter, toggleTier, llBand, setLlBand, fighterRarity, toggleFighterRarity, fighterPool,
     locked, setLocked, priority, setPriority, results, setResults, generating, setGenerating,
     current, setCurrent, openTeam, charSheet, openChar, equipSheet, openEquip,
