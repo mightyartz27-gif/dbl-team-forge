@@ -42,6 +42,10 @@ Power Resonance (triggers at battle start), battle traits (counters, cover chang
 - **Scan depth**: Thorough widens the fighter candidate list (≈1.6×) and fully evaluates twice as many teams.
 - **Ability Bonus**: per fighter, the sum of HP, Strike/Blast ATK, Strike/Blast DEF, Damage, Damage Guard and Ki bonuses from every source and layer; the team figure adds up the fighters. Grade (S+…D) is a band of the optimizer score.
 
+## Ability Bonus and Deck cohesion priorities
+- **Ability Bonus** weighs exactly the stats the Ability Bonus figure adds up (HP, Strike/Blast ATK, Strike/Blast DEF, Damage, Damage Guard, Ki) equally, in the search and in equipment picks, and scores the per-fighter total (blended with the weakest fighter per the Team balance slider). It is always included among the generated variants.
+- **Deck cohesion** values only buffs on each fighter's own Strike/Blast side and counts off-side buffs against it, so the search, Leader choice and equipment steer toward cohesive teams. Mixed-lean fighters want both sides equally.
+
 ## My box and Zenkai
 - Owned Zenkai-capable characters are counted without their Zenkai Z Ability unless marked as Zenkai Awakened in the box. That also gives them the larger pre-Zenkai PvP tier bonus. Characters not in the box are assumed fully awakened.
 
