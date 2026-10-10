@@ -13,7 +13,7 @@ export function Formation({ team, onSlot, coverage, size = 'lg', lockedIds = [] 
     const c = m ? db.chars.get(m.charId) : null;
     const body = c ? (
       <div className="flex flex-col items-center gap-1.5">
-        <CharAvatar c={c} size={px} leader={team.leader === i} />
+        <CharAvatar c={c} size={px} leader={team.leader === i} awakened={m!.zenkai} />
         {size === 'lg' && (
           <span className="line-clamp-2 w-full text-center text-[11px] leading-tight text-mute">
             {lockedIds.includes(c.id) && <span aria-label="Locked">🔒 </span>}{c.name}

@@ -15,7 +15,7 @@ function initials(name: string) {
   return (main[0]?.[0] ?? words[0]?.[0] ?? '?') + (main[1]?.[0] ?? '');
 }
 
-export function CharAvatar({ c, size = 56, leader, dim, hideZenkai }: { c: Character; size?: number; leader?: boolean; dim?: boolean; hideZenkai?: boolean }) {
+export function CharAvatar({ c, size = 56, leader, dim, hideZenkai, awakened }: { c: Character; size?: number; leader?: boolean; dim?: boolean; hideZenkai?: boolean; awakened?: boolean }) {
   const [failed, setFailed] = useState(false);
   const ring = c.colors.length > 1 ? `conic-gradient(${EL_COLOR[c.colors[0]]} 0 50%, ${EL_COLOR[c.colors[1]]} 50% 100%)` : EL_COLOR[c.color];
   return (
@@ -34,7 +34,10 @@ export function CharAvatar({ c, size = 56, leader, dim, hideZenkai }: { c: Chara
         {c.lf ? 'LL' : RARITY_SHORT[c.rarity] ?? c.rarity}
       </span>}
       {leader && <span aria-label="Leader" className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gi text-[11px] font-black text-ink">★</span>}
-      {c.zenkai && size >= 34 && !hideZenkai && <span title="Zenkai" className="absolute -left-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-el-yel text-[9px] font-black text-ink">Z</span>}
+      {c.zenkai && size >= 34 && !hideZenkai && (
+        <span title={awakened === false ? 'Zenkai: not awakened' : 'Zenkai'}
+          className={`absolute -left-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black ${awakened === false ? 'bg-panel-2 text-mute line-through ring-1 ring-line' : 'bg-el-yel text-ink'}`}>Z</span>
+      )}
     </div>
   );
 }

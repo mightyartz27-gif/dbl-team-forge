@@ -33,6 +33,8 @@ export function ScanOptions({ pvpChecked, onPvp, showDepth }: { pvpChecked: bool
         <p className="text-xs text-mute"><span className="num text-cream">{pct}% balanced.</span> Blends the team average with the weakest fighter, so one strong carry can't hide two weak teammates.</p>
       </div>
       {db.data.pvp && <Toggle checked={pvpChecked} onChange={onPvp} title="Apply PvP tier bonus" sub="Adds each fighter's official Rating Match Damage and Guard boost to its stats." />}
+      <Toggle checked={evalOpts.zenkaiBench} onChange={(b) => setEvalOpts({ zenkaiBench: b })} title="Prefer Zenkai support on the bench"
+        sub="Zenkai Z Abilities count extra when choosing the bench, so Zenkai Awakened units that buff your fighters are picked first." />
       <Toggle checked={evalOpts.cohesion} onChange={(b) => setEvalOpts({ cohesion: b })} title="Reward style cohesion"
         sub="Prefers fighters whose Strike/Blast buffs match their own Strike/Blast stats." />
       {showDepth && (
