@@ -2,7 +2,7 @@ import type { StatKey } from '../data/types';
 import type { Db } from './db';
 import { computeSheet, type MemberSheet, type Source, type TeamSheet } from './stats';
 import { abilitiesOf, BATTLE, type Team, type ZSource } from './zAbilities';
-import { attackType, componentWeights, DEFAULT_EVAL, REF, saturate, statWeights, WASTED_PENALTY, type AttackType, type ComponentWeights, type EvalOptions, type Priority } from './weights';
+import { attackType, componentWeights, DEFAULT_EVAL, REF, saturate, ZENKAI_PREFERENCE, statWeights, WASTED_PENALTY, type AttackType, type ComponentWeights, type EvalOptions, type Priority } from './weights';
 
 export const SYNERGY_TAG_KINDS = new Set(['class', 'episode', 'character']);
 
@@ -193,6 +193,7 @@ export function evaluateTeam(team: Team, db: Db, p: Priority, lockedIds: number[
   };
   const cw = componentWeights(p);
   if (!opts.cohesion && p !== 'cohesion') cw.cohesion = 0;
+  if (opts.zenkaiBench) cw.zenkaiEfficiency *= ZENKAI_PREFERENCE;
   if (!lockedSlots.length) cw.locked = 0;
   const wsum = Object.values(cw).reduce((s, x) => s + x, 0);
   const wasted = abilities.filter((a) => a.wasted).length;

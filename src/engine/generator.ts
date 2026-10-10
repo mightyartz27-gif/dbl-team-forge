@@ -2,13 +2,13 @@ import type { StatKey } from '../data/types';
 import type { Db } from './db';
 import { withOptimizedEquipment } from './equipOptimizer';
 import { evaluateTeam, synergyScore, SYNERGY_TAG_KINDS, type TeamEval } from './scoring';
-import { attackType, DEFAULT_EVAL, sourceWeights, statWeights, type AttackType, type EvalOptions, type Priority } from './weights';
+import { attackType, DEFAULT_EVAL, sourceWeights, statWeights, ZENKAI_PREFERENCE, type AttackType, type EvalOptions, type Priority } from './weights';
 import { tierBonusFor } from './pvp';
 import { abilitiesOf, matches, newMember, type Team, type ZSource } from './zAbilities';
 
 interface PreLine { source: ZSource; cond: number[][] | null; v: Record<AttackType, number> }
 interface Pre { id: number; type: AttackType; tags: Set<number>; synTags: number[]; lines: PreLine[]; uncond: Record<AttackType, number>; uncondZ: Record<AttackType, number>; assault: Record<AttackType, number>; tierV: number }
-export interface RulesetOptions { ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; coverage?: EvalOptions['coverage'] }
+export interface RulesetOptions { ruleset?: 'standard' | 'rating'; llBand?: number; notAwakened?: number[]; coverage?: EvalOptions['coverage']; zenkaiBench?: boolean }
 
 const TYPES: AttackType[] = ['strike', 'blast', 'mixed'];
 
@@ -18,6 +18,7 @@ export class SearchContext {
   private rCache = new Map<number, number>();
   constructor(readonly db: Db, readonly p: Priority, pool: number[], readonly rules: RulesetOptions = {}) {
     const sw = sourceWeights(p);
+    if (rules.zenkaiBench) sw.zenkai *= ZENKAI_PREFERENCE;
     const W = Object.fromEntries(TYPES.map((t) => [t, statWeights(p, t, rules.coverage)])) as Record<AttackType, Partial<Record<StatKey, number>>>;
     for (const id of pool) {
       const c = db.char(id);
@@ -221,7 +222,7 @@ export function generateForTarget(db: Db, o: GenerateOptions, rankBy: Priority, 
   const target = o.target!;
   const opts = { ...(o.evalOpts ?? DEFAULT_EVAL), depth: 'thorough' as const };
   const pool = [...new Set([...o.pool, ...o.locked, ...(o.lockedBench ?? [])])].filter((id) => db.chars.has(id));
-  const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage };
+  const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage, zenkaiBench: opts.zenkaiBench };
   const ctx = new SearchContext(db, 'abilitybonus', pool, rules);
   const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, 30, o.fighterPool, 'thorough', target.basis === 'team');
   const value = (e: TeamEval) => (target.basis === 'team' ? e.metrics.abilityBonusTeam : e.metrics.abilityBonus);
@@ -252,7 +253,7 @@ export function generateTeams(db: Db, o: GenerateOptions): GeneratedTeam[] {
   for (const p of o.priorities) {
     o.onProgress?.(`Searching ${p}…`);
     const opts = o.evalOpts ?? DEFAULT_EVAL;
-    const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage };
+    const rules: RulesetOptions = { ruleset: o.ruleset, llBand: o.llBand, notAwakened: o.notAwakened, coverage: opts.coverage, zenkaiBench: opts.zenkaiBench };
     const ctx = new SearchContext(db, p, pool, rules);
     const cands = searchCandidates(ctx, o.locked, o.lockedBench ?? [], pool, o.perPriority ?? (opts.depth === 'thorough' ? 12 : 6), o.fighterPool, opts.depth);
     const evaluated = cands.map((c, i) => {

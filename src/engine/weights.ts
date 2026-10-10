@@ -49,8 +49,12 @@ export interface EvalOptions {
   cohesion: boolean;
   /** search breadth */
   depth: 'quick' | 'thorough';
+  /** give Zenkai Z Abilities extra weight when choosing the bench */
+  zenkaiBench: boolean;
 }
-export const DEFAULT_EVAL: EvalOptions = { coverage: 'both', floor: 0.15, cohesion: true, depth: 'quick' };
+export const DEFAULT_EVAL: EvalOptions = { coverage: 'both', floor: 0.15, cohesion: true, depth: 'quick', zenkaiBench: true };
+/** extra weight for Zenkai Z Abilities when 'Prefer Zenkai support' is on */
+export const ZENKAI_PREFERENCE = 1.8;
 
 export function statWeights(p: Priority, t: AttackType, coverage: Coverage = 'both'): W {
   const w: W = { ...BASE_W };

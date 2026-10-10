@@ -55,9 +55,9 @@ export function benchContribution(team: Team, charId: number, db: Db, ctx: Searc
   return { charId, useful, receivers: [...receivers], zenkai, statTotals, health: statTotals.hp ?? 0, reasons };
 }
 
-export function benchRanking(team: Team, db: Db, p: Priority, pool: number[], limit = 10): { chosen: BenchOption[]; alternatives: BenchOption[] } {
+export function benchRanking(team: Team, db: Db, p: Priority, pool: number[], limit = 10, opts: EvalOptions = DEFAULT_EVAL): { chosen: BenchOption[]; alternatives: BenchOption[] } {
   const ids = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened });
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...ids])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened, zenkaiBench: opts.zenkaiBench });
   const chosen = BENCH.map((i) => team.slots[i]).filter(Boolean).map((m) => benchContribution(team, m!.charId, db, ctx));
   const alts = pool.filter((id) => !ids.has(id)).map((id) => benchContribution(team, id, db, ctx)).filter((b) => b.useful > 0).sort((a, b) => b.useful - a.useful).slice(0, limit);
   const weakest = [...chosen].sort((a, b) => a.useful - b.useful)[0];
@@ -146,7 +146,7 @@ export function diagnose(team: Team, ev: TeamEval, db: Db): Problem[] {
 export function suggestSwaps(team: Team, db: Db, p: Priority, pool: number[], locked: number[], limit = 4, fighterPool?: number[], opts: EvalOptions = DEFAULT_EVAL): Swap[] {
   const cur = evaluateTeam(team, db, p, locked, opts);
   const inTeam = new Set(team.slots.filter(Boolean).map((m) => m!.charId));
-  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened, coverage: opts.coverage });
+  const ctx = new SearchContext(db, p, [...new Set([...pool, ...inTeam])], { ruleset: team.ruleset, llBand: team.llBand, notAwakened: team.notAwakened, coverage: opts.coverage, zenkaiBench: opts.zenkaiBench });
   const fighterSet = fighterPool ? new Set(fighterPool) : null;
   const trio = BATTLE.map((i) => team.slots[i]?.charId).filter((x): x is number => x !== undefined);
   const leaderId = team.leader !== null ? team.slots[team.leader]?.charId ?? null : null;
