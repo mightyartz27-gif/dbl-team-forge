@@ -1,7 +1,7 @@
 {
   "source": "dblegends.net (community database)",
-  "fetchedAt": "2026-10-12T13:59:56.379Z",
-  "builtAt": "2026-10-12T13:59:57.156Z",
+  "fetchedAt": "2026-10-15T10:39:14.874Z",
+  "builtAt": "2026-10-15T10:39:15.710Z",
   "counts": {
     "characters": 713,
     "equipment": 931,
@@ -9,8 +9,8 @@
     "tags": 517
   },
   "parse": {
-    "zAbilityLevels": 3960,
-    "zAbilityLevelsFullyParsed": 3949,
+    "zAbilityLevels": 3964,
+    "zAbilityLevelsFullyParsed": 3953,
     "characterWarnings": 5,
     "equipLinesParsed": 3841,
     "equipLinesContextual": 445
