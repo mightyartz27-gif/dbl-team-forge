@@ -1,10 +1,10 @@
 {
  "source": "Official Rating Match tier notice (via dblegends.net)",
- "url": "https://dblegends.net/news/5761",
+ "url": "https://dblegends.net/news/5775",
  "title": "The Newest Rating Match Tier List Is Here!",
  "seasonStart": "2026/10/07 18:00 JST",
  "seasons": 1,
- "fetchedAt": "2026-10-09T14:21:25.741Z",
+ "fetchedAt": "2026-10-20T14:25:11.628Z",
  "bonus": {
   "featured": {
    "pre": {
@@ -106,6 +106,7 @@
   "DBL69-03U": "featured",
   "DBL50-02S": "featured",
   "DBL50-01S": "featured",
+  "DBL24-05S": "featured",
   "DBL15-08S": "featured",
   "DBL-EVT-113S": "featured",
   "DBL-EVT-112S": "featured",
@@ -140,7 +141,6 @@
   "DBL24-15S": "Z",
   "DBL24-13S": "Z",
   "DBL24-09S": "Z",
-  "DBL24-05S": "Z",
   "DBL23-05S": "Z",
   "DBL23-02S": "Z",
   "DBL22-04S": "Z",
@@ -501,5 +501,5 @@
   "DBL36-01S": "C",
   "DBL34-01S": "C"
  },
- "newsId": 5761
+ "newsId": 5775
 }
