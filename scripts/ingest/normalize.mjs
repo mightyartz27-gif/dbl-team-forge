@@ -375,20 +375,28 @@ async function main() {
     const h = await fs.readFile(path.join(RAW, 'equip', f), 'utf8');
     if (!h) continue;
     const id = +f.replace('.html', '');
-    const name = stripTags((h.match(/<div class="eqd-name">([\s\S]*?)<\/div>/) || [])[1] || '');
+    // Two page layouts are supported: current (Nov 2026: eqd-hero / eqd-slot data-s / eqd-optc / #cgrid)
+    // and the older one (eqd-head / "SLOT n" labels / eqd-option / #eqdCharList).
+    const modern = h.includes('class="eqd-slot" data-s=');
+    const name = stripTags((h.match(/<h1 class="eqd-name">([\s\S]*?)<\/h1>/) || h.match(/<div class="eqd-name">([\s\S]*?)<\/div>/) || [])[1] || '');
     const rarity = (h.match(/eqx-frame ([a-z_]+)"/) || [])[1] || 'unknown';
-    const condGroups = [...h.matchAll(/<div class="eqd-condgrp">([\s\S]*?)<\/div>/g)].map((g) => [...g[1].matchAll(/eqd-badge">([^<]+)</g)].map((b) => decode(b[1])));
-    const anyone = /Can be equipped to any character/i.test(h);
-    const listStart = h.indexOf('id="eqdCharList"');
-    const eligible = listStart >= 0 ? [...h.slice(listStart).matchAll(/href="character\/(\d+)"/g)].map((m) => +m[1]) : [];
-    const slotHtml = h.split('<div class="eqd-slot-label">SLOT ').slice(1).map((s) => s.split('<div class="eqd-slot eqd-calc">')[0]);
+    const condGroups = modern
+      ? [...h.matchAll(/<div class="eqd-grp">([\s\S]*?)<\/div>/g)].map((g) => [...g[1].matchAll(/class="eqd-chip"[^>]*>([^<]+)</g)].map((b) => decode(b[1])))
+      : [...h.matchAll(/<div class="eqd-condgrp">([\s\S]*?)<\/div>/g)].map((g) => [...g[1].matchAll(/eqd-badge">([^<]+)</g)].map((b) => decode(b[1])));
+    const anyone = /Can be equipped to any character|By any character/i.test(h);
+    const listStart = modern ? h.indexOf('id="cgrid"') : h.indexOf('id="eqdCharList"');
+    const eligible = listStart >= 0 ? [...new Set([...h.slice(listStart).matchAll(/href="\/?character\/(\d+)"/g)].map((m) => +m[1]))] : [];
+    const slotHtml = modern
+      ? h.split('<div class="eqd-slot" data-s="').slice(1).map((s) => s.split('<aside')[0])
+      : h.split('<div class="eqd-slot-label">SLOT ').slice(1).map((s) => s.split('<div class="eqd-slot eqd-calc">')[0]);
     const warnings = [];
     const slots = slotHtml.map((s) => {
-      const opts = s.includes('eqd-option') ? s.split('<div class="eqd-option">').slice(1) : [s];
+      const opts = s.includes('eqd-optc') ? s.split('<div class="eqd-optc">').slice(1) : s.includes('eqd-option') ? s.split('<div class="eqd-option">').slice(1) : [s];
       return {
         options: opts.map((o) => {
           const lines = [];
-          for (const e of o.matchAll(/<div class="eqd-eff">([\s\S]*?)<\/div>/g)) {
+          const effRe = modern ? /<div class="eqd-etx">([\s\S]*?)<\/div>/g : /<div class="eqd-eff">([\s\S]*?)<\/div>/g;
+          for (const e of o.matchAll(effRe)) {
             const txt = stripTags(e[1]);
             const r = parseEquipLine(txt, dict);
             if (r.multi) { lines.push(...r.multi.map((x) => ({ ...x, raw: txt }))); eqStats.linesParsed++; continue; }
@@ -424,6 +432,18 @@ async function main() {
   // ---- validation report: what changed since the last snapshot, what needs a human look
   const prevIds = async (f) => { try { return new Set(JSON.parse(await fs.readFile(path.join(OUT, f), 'utf8')).map((x) => x.id)); } catch { return new Set(); } };
   const prevC = await prevIds('characters.json'), prevE = await prevIds('equipment.json');
+  // Sanity guard: if the source site changes its page layout, parsing collapses. Stop with a clear message
+  // instead of writing broken data (the previous snapshot stays in place).
+  const battleNow = equipment.filter((e) => e.battle).length;
+  const condNow = equipment.reduce((n, e) => n + e.slots.reduce((m, s) => m + s.options.reduce((k, o) => k + o.lines.filter((l) => l.cond).length, 0), 0), 0);
+  const problems = [];
+  if (prevC.size && characters.length < prevC.size * 0.9) problems.push(`characters dropped from ${prevC.size} to ${characters.length}`);
+  if (prevE.size && battleNow < prevE.size * 0.9) problems.push(`battle equipment dropped from ${prevE.size} to ${battleNow}`);
+  if (battleNow > 100 && condNow < 100) problems.push(`only ${condNow} conditional equipment lines parsed`);
+  if (problems.length) {
+    console.error('INGESTION STOPPED: parsing looks broken, probably because dblegends.net changed its page layout.\n  - ' + problems.join('\n  - ') + '\nThe previous data was kept. Update scripts/ingest/normalize.mjs (and fetch.mjs) for the new layout.');
+    process.exit(1);
+  }
   const report = {
     builtAt: new Date().toISOString(),
     newCharacters: characters.filter((c) => prevC.size && !prevC.has(c.id)).map((c) => `${c.card} ${c.name}`),

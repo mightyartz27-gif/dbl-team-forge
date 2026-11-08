@@ -84,8 +84,12 @@ async function main() {
     if (!REFRESH && (await exists(file))) return;
     const html = await get(`${BASE}/equip/${id}`);
     if (!html) return;
-    const start = html.indexOf('<div class="eqd-head">');
-    const end = html.indexOf('DBLegends.net', start);
+    // Layout markers: current site (Nov 2026) uses <div class="eqd" id="eqd">; older pages used eqd-head.
+    let start = html.indexOf('<div class="eqd" id="eqd">');
+    if (start < 0) start = html.indexOf('<div class="eqd-head">');
+    let end = html.indexOf('DBLegends.net', start);
+    if (end < 0) end = html.length;
+    if (start < 0) console.warn(`  equip ${id}: unknown page layout, saved empty`);
     await fs.writeFile(file, start >= 0 ? html.slice(start, end) : '');
   });
 

@@ -62,6 +62,18 @@ export function parseTierPost(html, url) {
   return { source: 'Official Rating Match tier notice (via dblegends.net)', url, title, seasonStart: start, seasons, fetchedAt: new Date().toISOString(), bonus, llBands, tiers };
 }
 
+/** Write the tier-list cards that the character data doesn't contain yet (used by the daily workflow). */
+async function reportUnknown(tiers) {
+  try {
+    const chars = JSON.parse(await fs.readFile(path.resolve('src/data/generated/characters.json'), 'utf8'));
+    const known = new Set(chars.map((c) => String(c.card).toUpperCase()));
+    const unknown = Object.keys(tiers || {}).filter((k) => !known.has(k));
+    await fs.mkdir(path.resolve('.cache'), { recursive: true });
+    await fs.writeFile(path.resolve('.cache/tier-unknown.txt'), unknown.join('\n'));
+    if (unknown.length) console.log(`Tier list mentions ${unknown.length} character(s) not in the character data yet: ${unknown.join(', ')}`);
+  } catch { /* no character data yet */ }
+}
+
 async function main() {
   let previous = null;
   try { previous = JSON.parse(await fs.readFile(OUT, 'utf8')); } catch { /* first run */ }
@@ -80,15 +92,18 @@ async function main() {
   }
   if (!found) {
     console.log(previous ? `No newer tier post; keeping ${previous.url}` : 'No tier post found (PvP mode will be unavailable).');
+    await reportUnknown(previous?.tiers);
     return;
   }
   if (previous && previous.newsId === found.newsId && JSON.stringify(previous.tiers) === JSON.stringify(found.tiers)) {
     console.log(`Tier list unchanged (${found.url}).`);
+    await reportUnknown(found.tiers);
     return;
   }
   await fs.writeFile(OUT, JSON.stringify(found, null, 1));
   const counts = Object.values(found.tiers).reduce((a, t) => ((a[t] = (a[t] || 0) + 1), a), {});
   console.log(`Saved tier list from ${found.url}: season from ${found.seasonStart}`, counts);
+  await reportUnknown(found.tiers);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main().catch((e) => { console.error('Tier ingestion failed, keeping previous data:', e.message); });
