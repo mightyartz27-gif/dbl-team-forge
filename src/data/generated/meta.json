@@ -1,7 +1,7 @@
 {
   "source": "dblegends.net (community database)",
-  "fetchedAt": "2026-11-12T14:23:22.595Z",
-  "builtAt": "2026-11-12T14:23:23.492Z",
+  "fetchedAt": "2026-11-16T14:25:13.071Z",
+  "builtAt": "2026-11-16T14:25:14.113Z",
   "counts": {
     "characters": 716,
     "equipment": 941,
@@ -12,7 +12,7 @@
     "zAbilityLevels": 3988,
     "zAbilityLevelsFullyParsed": 3977,
     "characterWarnings": 5,
-    "equipLinesParsed": 3884,
+    "equipLinesParsed": 3892,
     "equipLinesContextual": 488
   }
 }
